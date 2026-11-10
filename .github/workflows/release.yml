@@ -364,6 +364,7 @@ jobs:
             dist-release/archives/* \
             --title "MineVault v${APP_VERSION} (Portable USB Release)" \
             --draft \
+            --clobber \
             --notes-file - << 'EOF'
           ## MineVault: Portable Minecraft Disaster Recovery & B2 Backup Manager
 

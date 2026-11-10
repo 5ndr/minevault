@@ -7,8 +7,14 @@ set -euo pipefail
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 REPO_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
-BUILD_DIR="${1:-$REPO_ROOT/dist-build}"
-OUTPUT_DIR="${2:-$REPO_ROOT/dist-release}"
+BUILD_DIR_INPUT="${1:-$REPO_ROOT/dist-build}"
+OUTPUT_DIR_INPUT="${2:-$REPO_ROOT/dist-release}"
+
+mkdir -p "$BUILD_DIR_INPUT"
+mkdir -p "$OUTPUT_DIR_INPUT"
+
+BUILD_DIR="$(cd "$BUILD_DIR_INPUT" && pwd)"
+OUTPUT_DIR="$(cd "$OUTPUT_DIR_INPUT" && pwd)"
 
 VERSION="${MINEVAULT_VERSION:-$(node -p "require('$REPO_ROOT/src-tauri/tauri.conf.json').version" 2>/dev/null || echo "0.1.0")}"
 COMMIT_SHA="${GITHUB_SHA:-$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo "unknown")}"

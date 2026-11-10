@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::models::{Profile, RepoConfig, RunResult, SchedulerStatus, SessionCredentials};
-use crate::scheduler::{setup_persistent_local_files, SchedulerAdapter};
+use crate::scheduler::{SchedulerAdapter, setup_persistent_local_files};
 use crate::system::get_persistent_app_dir;
 
 pub struct MacOsLaunchdAdapter;
@@ -31,8 +31,12 @@ impl MacOsLaunchdAdapter {
         schedule: &crate::models::ScheduleSpec,
     ) -> String {
         let label = Self::service_label(profile_id);
-        let stdout_log = base_dir.join("logs").join(format!("{}-launchd.out.log", profile_id));
-        let stderr_log = base_dir.join("logs").join(format!("{}-launchd.err.log", profile_id));
+        let stdout_log = base_dir
+            .join("logs")
+            .join(format!("{}-launchd.out.log", profile_id));
+        let stderr_log = base_dir
+            .join("logs")
+            .join(format!("{}-launchd.err.log", profile_id));
 
         let schedule_xml = match schedule.frequency.as_str() {
             "hourly" => "    <key>StartInterval</key>\n    <integer>3600</integer>".to_string(),
@@ -89,6 +93,12 @@ impl MacOsLaunchdAdapter {
     }
 }
 
+impl Default for MacOsLaunchdAdapter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SchedulerAdapter for MacOsLaunchdAdapter {
     fn platform_name(&self) -> &'static str {
         "macos"
@@ -101,7 +111,10 @@ impl SchedulerAdapter for MacOsLaunchdAdapter {
         creds: &SessionCredentials,
         restic_bin: &Path,
     ) -> Result<SchedulerStatus, String> {
-        let schedule = profile.schedule.as_ref().ok_or("No schedule configured on profile")?;
+        let schedule = profile
+            .schedule
+            .as_ref()
+            .ok_or("No schedule configured on profile")?;
         let base_dir = get_persistent_app_dir();
 
         // 1. Set up persistent local directories, copy runner & restic binaries, write configs
@@ -115,8 +128,13 @@ impl SchedulerAdapter for MacOsLaunchdAdapter {
         }
 
         let xml = Self::generate_plist_xml(&profile.id, &runner_exe, &base_dir, schedule);
-        fs::write(&plist_path, xml)
-            .map_err(|e| format!("Failed to write LaunchAgent plist to {}: {}", plist_path.display(), e))?;
+        fs::write(&plist_path, xml).map_err(|e| {
+            format!(
+                "Failed to write LaunchAgent plist to {}: {}",
+                plist_path.display(),
+                e
+            )
+        })?;
 
         // 3. Register with launchctl
         let uid = unsafe { libc::getuid() };
@@ -173,7 +191,11 @@ impl SchedulerAdapter for MacOsLaunchdAdapter {
 
         // Clean up persistent config & secrets (preserving backup repository data)
         let base_dir = get_persistent_app_dir();
-        let _ = fs::remove_file(base_dir.join("configs").join(format!("{}.json", profile_id)));
+        let _ = fs::remove_file(
+            base_dir
+                .join("configs")
+                .join(format!("{}.json", profile_id)),
+        );
         let _ = fs::remove_file(base_dir.join("secrets").join(format!("{}.env", profile_id)));
 
         Ok(())
@@ -198,7 +220,9 @@ impl SchedulerAdapter for MacOsLaunchdAdapter {
     fn enable(&self, profile_id: &str) -> Result<(), String> {
         let plist_path = Self::plist_path(profile_id);
         if !plist_path.exists() {
-            return Err("LaunchAgent plist file does not exist. Please reinstall schedule.".to_string());
+            return Err(
+                "LaunchAgent plist file does not exist. Please reinstall schedule.".to_string(),
+            );
         }
 
         let uid = unsafe { libc::getuid() };
@@ -218,19 +242,20 @@ impl SchedulerAdapter for MacOsLaunchdAdapter {
     fn status(&self, profile_id: &str) -> Result<SchedulerStatus, String> {
         let plist_path = Self::plist_path(profile_id);
         let base_dir = get_persistent_app_dir();
-        let config_path = base_dir.join("configs").join(format!("{}.json", profile_id));
+        let config_path = base_dir
+            .join("configs")
+            .join(format!("{}.json", profile_id));
         let runner_path = base_dir.join("bin").join("resticdashboard-runner");
 
         let installed = plist_path.is_file();
         let mut last_run = None;
 
         let status_file = base_dir.join("status").join(format!("{}.json", profile_id));
-        if status_file.is_file() {
-            if let Ok(content) = fs::read_to_string(&status_file) {
-                if let Ok(run) = serde_json::from_str::<RunResult>(&content) {
-                    last_run = Some(run);
-                }
-            }
+        if status_file.is_file()
+            && let Ok(content) = fs::read_to_string(&status_file)
+            && let Ok(run) = serde_json::from_str::<RunResult>(&content)
+        {
+            last_run = Some(run);
         }
 
         let notes = if installed {

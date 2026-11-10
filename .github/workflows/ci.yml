@@ -1,0 +1,158 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# Minimal repository permissions
+permissions:
+  contents: read
+
+# Avoid redundant builds by cancelling in-progress runs on the same branch/ref
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Frontend Check & Build
+  # ---------------------------------------------------------------------------
+  frontend:
+    name: Frontend (Node 22 / TypeScript / Vite)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (Node 22 LTS satisfying Vite 8 engine requirements)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies (clean install)
+        run: npm ci
+
+      - name: Run TypeScript typecheck
+        run: npx tsc --noEmit
+
+      - name: Build frontend bundle
+        run: npm run build
+
+  # ---------------------------------------------------------------------------
+  # 2. Rust Formatting & Clippy Linting
+  # ---------------------------------------------------------------------------
+  rust-lint:
+    name: Rust Code Quality (fmt & clippy)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux Tauri build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libayatana-appindicator3-dev
+
+      - name: Setup Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Check code formatting (cargo fmt)
+        run: cargo fmt --check --manifest-path src-tauri/Cargo.toml
+
+      - name: Run Clippy lints
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+  # ---------------------------------------------------------------------------
+  # 3. Rust Cross-Platform Compilation & Runtime Tests
+  # ---------------------------------------------------------------------------
+  rust-test:
+    name: Rust Tests (${{ matrix.os }})
+    needs: [frontend]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform_name: Linux
+          - os: macos-latest
+            platform_name: macOS
+          - os: windows-latest
+            platform_name: Windows
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js for frontend assets
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build frontend distribution for Tauri assets
+        run: npm run build
+
+      - name: Install Linux system dependencies & restic
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            restic
+
+      - name: Install macOS restic engine
+        if: runner.os == 'macOS'
+        run: |
+          brew install restic
+
+      - name: Install Windows restic engine
+        if: runner.os == 'Windows'
+        run: |
+          choco install restic --no-progress
+
+      - name: Setup Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Build check (cargo check)
+        run: cargo check --manifest-path src-tauri/Cargo.toml --all-targets
+
+      - name: Run unit and integration tests (local temporary restic repositories)
+        run: cargo test --manifest-path src-tauri/Cargo.toml --verbose -- --nocapture

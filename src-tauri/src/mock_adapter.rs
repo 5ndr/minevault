@@ -1,7 +1,6 @@
 use crate::models::{
     FolderSizeBreakdown, GrowthPoint, MinecraftPresetConfig, Profile, RepoConfig, RepoType,
-    ResticNode, ResticSnapshot, ResticSnapshotSummary, RunResult, ScheduleSpec,
-    StorageOverview,
+    ResticNode, ResticSnapshot, ResticSnapshotSummary, RunResult, ScheduleSpec, StorageOverview,
 };
 
 pub struct MockResticAdapter;
@@ -28,10 +27,14 @@ impl MockResticAdapter {
             id: "prism-demo-profile".to_string(),
             name: "Prism Launcher Backups".to_string(),
             repo_id: "demo-repo".to_string(),
-            machine_id: "macbook-declan".to_string(),
+            machine_id: "demo-host".to_string(),
             machine_name: "MacBook Pro".to_string(),
-            source_paths: vec!["/Users/declan/Library/Application Support/PrismLauncher".to_string()],
-            exclusions: vec!["*.lock".to_string(), "logs/*".to_string(), "cache/*".to_string()],
+            source_paths: vec!["/Users/demo/Library/Application Support/PrismLauncher".to_string()],
+            exclusions: vec![
+                "*.lock".to_string(),
+                "logs/*".to_string(),
+                "cache/*".to_string(),
+            ],
             tags: vec!["minecraft".to_string(), "daily".to_string()],
             schedule: Some(ScheduleSpec {
                 frequency: "daily".to_string(),
@@ -42,7 +45,7 @@ impl MockResticAdapter {
             }),
             minecraft_preset: Some(MinecraftPresetConfig {
                 enabled: true,
-                launcher_path: "/Users/declan/Library/Application Support/PrismLauncher".to_string(),
+                launcher_path: "/Users/demo/Library/Application Support/PrismLauncher".to_string(),
                 selected_instances: vec!["Survival 1.20".to_string(), "Modded Factory".to_string()],
                 warn_live_world: true,
                 close_world_advised: true,
@@ -62,9 +65,9 @@ impl MockResticAdapter {
                 id: "e1a9b4c8d3214567e890123456789abcdef0123456789abcdef0123456789abc".to_string(),
                 short_id: "e1a9b4c8".to_string(),
                 time: "2026-11-09T04:00:15Z".to_string(),
-                paths: vec!["/Users/declan/Library/Application Support/PrismLauncher".to_string()],
-                hostname: "macbook-declan".to_string(),
-                username: Some("declan".to_string()),
+                paths: vec!["/Users/demo/Library/Application Support/PrismLauncher".to_string()],
+                hostname: "demo-host".to_string(),
+                username: Some("demo".to_string()),
                 tags: Some(vec!["minecraft".to_string(), "daily".to_string()]),
                 summary: Some(ResticSnapshotSummary {
                     files_new: Some(14),
@@ -88,9 +91,9 @@ impl MockResticAdapter {
                 id: "b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef012".to_string(),
                 short_id: "b2c3d4e5".to_string(),
                 time: "2026-11-08T04:00:12Z".to_string(),
-                paths: vec!["/Users/declan/Library/Application Support/PrismLauncher".to_string()],
-                hostname: "macbook-declan".to_string(),
-                username: Some("declan".to_string()),
+                paths: vec!["/Users/demo/Library/Application Support/PrismLauncher".to_string()],
+                hostname: "demo-host".to_string(),
+                username: Some("demo".to_string()),
                 tags: Some(vec!["minecraft".to_string(), "daily".to_string()]),
                 summary: Some(ResticSnapshotSummary {
                     files_new: Some(28),
@@ -111,12 +114,13 @@ impl MockResticAdapter {
                 }),
             },
             ResticSnapshot {
-                id: "a3f8c1d2e4567890123456789abcdef0123456789abcdef0123456789abcdef012".to_string(),
+                id: "a3f8c1d2e4567890123456789abcdef0123456789abcdef0123456789abcdef012"
+                    .to_string(),
                 short_id: "a3f8c1d2".to_string(),
                 time: "2026-11-01T04:00:09Z".to_string(),
-                paths: vec!["/Users/declan/Library/Application Support/PrismLauncher".to_string()],
-                hostname: "macbook-declan".to_string(),
-                username: Some("declan".to_string()),
+                paths: vec!["/Users/demo/Library/Application Support/PrismLauncher".to_string()],
+                hostname: "demo-host".to_string(),
+                username: Some("demo".to_string()),
                 tags: Some(vec!["minecraft".to_string(), "weekly".to_string()]),
                 summary: Some(ResticSnapshotSummary {
                     files_new: Some(1450),
@@ -141,9 +145,9 @@ impl MockResticAdapter {
 
     pub fn get_demo_storage_overview() -> StorageOverview {
         StorageOverview {
-            raw_data_size: 3_245_120_000,   // ~3.02 GiB deduplicated raw repo data blobs
-            restore_size: 13_973_654_784,   // ~13.01 GiB total logical restore size
-            provider_b2_usage: None,        // Clearly labelled as "Unavailable" (not fabricated)
+            raw_data_size: 3_245_120_000, // ~3.02 GiB deduplicated raw repo data blobs
+            restore_size: 13_973_654_784, // ~13.01 GiB total logical restore size
+            provider_b2_usage: None,      // Clearly labelled as "Unavailable" (not fabricated)
             b2_provider_details: None,
             snapshots_count: 3,
             growth_history: vec![
@@ -170,7 +174,8 @@ impl MockResticAdapter {
                 },
             ],
             calculated_at: "2026-11-09T17:00:00Z".to_string(),
-            measurement_method: "restic stats --mode raw-data / restore-size (Demo Simulation)".to_string(),
+            measurement_method: "restic stats --mode raw-data / restore-size (Demo Simulation)"
+                .to_string(),
             is_demo: true,
         }
     }
@@ -209,7 +214,7 @@ impl MockResticAdapter {
             ResticNode {
                 name: "instances".to_string(),
                 node_type: "dir".to_string(),
-                path: "/Users/declan/Library/Application Support/PrismLauncher/instances".to_string(),
+                path: "/Users/demo/Library/Application Support/PrismLauncher/instances".to_string(),
                 size: Some(0),
                 permissions: Some("drwxr-xr-x".to_string()),
                 mtime: Some("2026-11-09T03:55:00Z".to_string()),
@@ -219,7 +224,7 @@ impl MockResticAdapter {
             ResticNode {
                 name: "Survival 1.20".to_string(),
                 node_type: "dir".to_string(),
-                path: "/Users/declan/Library/Application Support/PrismLauncher/instances/Survival 1.20".to_string(),
+                path: "/Users/demo/Library/Application Support/PrismLauncher/instances/Survival 1.20".to_string(),
                 size: Some(0),
                 permissions: Some("drwxr-xr-x".to_string()),
                 mtime: Some("2026-11-09T03:52:00Z".to_string()),
@@ -229,7 +234,7 @@ impl MockResticAdapter {
             ResticNode {
                 name: "instance.cfg".to_string(),
                 node_type: "file".to_string(),
-                path: "/Users/declan/Library/Application Support/PrismLauncher/instances/Survival 1.20/instance.cfg".to_string(),
+                path: "/Users/demo/Library/Application Support/PrismLauncher/instances/Survival 1.20/instance.cfg".to_string(),
                 size: Some(2385),
                 permissions: Some("-rw-r--r--".to_string()),
                 mtime: Some("2026-11-07T00:47:00Z".to_string()),
@@ -239,7 +244,7 @@ impl MockResticAdapter {
             ResticNode {
                 name: "saves".to_string(),
                 node_type: "dir".to_string(),
-                path: "/Users/declan/Library/Application Support/PrismLauncher/instances/Survival 1.20/.minecraft/saves".to_string(),
+                path: "/Users/demo/Library/Application Support/PrismLauncher/instances/Survival 1.20/.minecraft/saves".to_string(),
                 size: Some(0),
                 permissions: Some("drwxr-xr-x".to_string()),
                 mtime: Some("2026-11-09T03:51:00Z".to_string()),
@@ -249,7 +254,7 @@ impl MockResticAdapter {
             ResticNode {
                 name: "World_Alpha".to_string(),
                 node_type: "dir".to_string(),
-                path: "/Users/declan/Library/Application Support/PrismLauncher/instances/Survival 1.20/.minecraft/saves/World_Alpha".to_string(),
+                path: "/Users/demo/Library/Application Support/PrismLauncher/instances/Survival 1.20/.minecraft/saves/World_Alpha".to_string(),
                 size: Some(0),
                 permissions: Some("drwxr-xr-x".to_string()),
                 mtime: Some("2026-11-09T03:50:00Z".to_string()),
@@ -259,7 +264,7 @@ impl MockResticAdapter {
             ResticNode {
                 name: "level.dat".to_string(),
                 node_type: "file".to_string(),
-                path: "/Users/declan/Library/Application Support/PrismLauncher/instances/Survival 1.20/.minecraft/saves/World_Alpha/level.dat".to_string(),
+                path: "/Users/demo/Library/Application Support/PrismLauncher/instances/Survival 1.20/.minecraft/saves/World_Alpha/level.dat".to_string(),
                 size: Some(3421),
                 permissions: Some("-rw-r--r--".to_string()),
                 mtime: Some("2026-11-09T03:50:00Z".to_string()),
@@ -269,7 +274,7 @@ impl MockResticAdapter {
             ResticNode {
                 name: "region".to_string(),
                 node_type: "dir".to_string(),
-                path: "/Users/declan/Library/Application Support/PrismLauncher/instances/Survival 1.20/.minecraft/saves/World_Alpha/region".to_string(),
+                path: "/Users/demo/Library/Application Support/PrismLauncher/instances/Survival 1.20/.minecraft/saves/World_Alpha/region".to_string(),
                 size: Some(0),
                 permissions: Some("drwxr-xr-x".to_string()),
                 mtime: Some("2026-11-09T03:45:00Z".to_string()),
@@ -279,7 +284,7 @@ impl MockResticAdapter {
             ResticNode {
                 name: "r.0.0.mca".to_string(),
                 node_type: "file".to_string(),
-                path: "/Users/declan/Library/Application Support/PrismLauncher/instances/Survival 1.20/.minecraft/saves/World_Alpha/region/r.0.0.mca".to_string(),
+                path: "/Users/demo/Library/Application Support/PrismLauncher/instances/Survival 1.20/.minecraft/saves/World_Alpha/region/r.0.0.mca".to_string(),
                 size: Some(5_242_880),
                 permissions: Some("-rw-r--r--".to_string()),
                 mtime: Some("2026-11-09T03:45:00Z".to_string()),
@@ -289,7 +294,7 @@ impl MockResticAdapter {
             ResticNode {
                 name: "prismlauncher.cfg".to_string(),
                 node_type: "file".to_string(),
-                path: "/Users/declan/Library/Application Support/PrismLauncher/prismlauncher.cfg".to_string(),
+                path: "/Users/demo/Library/Application Support/PrismLauncher/prismlauncher.cfg".to_string(),
                 size: Some(2385),
                 permissions: Some("-rw-r--r--".to_string()),
                 mtime: Some("2026-11-07T00:47:00Z".to_string()),
@@ -305,7 +310,7 @@ impl MockResticAdapter {
                 run_id: "demo-run-1".to_string(),
                 profile_id: "prism-demo-profile".to_string(),
                 profile_name: "Prism Launcher Backups".to_string(),
-                machine_id: "macbook-declan".to_string(),
+                machine_id: "demo-host".to_string(),
                 start_time: "2026-11-09T04:00:15Z".to_string(),
                 end_time: "2026-11-09T04:00:33Z".to_string(),
                 duration_seconds: 18.4,
@@ -326,7 +331,7 @@ impl MockResticAdapter {
                 run_id: "demo-run-2".to_string(),
                 profile_id: "prism-demo-profile".to_string(),
                 profile_name: "Prism Launcher Backups".to_string(),
-                machine_id: "macbook-declan".to_string(),
+                machine_id: "demo-host".to_string(),
                 start_time: "2026-11-08T04:00:12Z".to_string(),
                 end_time: "2026-11-08T04:00:34Z".to_string(),
                 duration_seconds: 22.1,

@@ -66,7 +66,7 @@ export const ManualBackupModal: React.FC<ManualBackupModalProps> = ({
         repo_id: 'default-repo',
         machine_id: systemInfo?.machine_id || 'local-host',
         machine_name: systemInfo?.machine_name || 'Host',
-        source_paths: systemInfo?.prism_launcher_path ? [systemInfo.prism_launcher_path] : ['/Users/declan'],
+        source_paths: systemInfo?.prism_launcher_path ? [systemInfo.prism_launcher_path] : [],
         exclusions: ['*.lock', 'logs/', 'crash-reports/', 'cache/'],
         tags: ['minecraft', 'manual'],
         keep_last: 10,

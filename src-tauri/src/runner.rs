@@ -1,8 +1,8 @@
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::thread;
 use std::time::Duration;
 
@@ -19,32 +19,39 @@ pub fn execute_unattended_runner(profile_id: &str, base_dir: &Path) -> Result<i3
 
     let config_file = configs_dir.join(format!("{}.json", profile_id));
     if !config_file.is_file() {
-        return Err(format!("Profile configuration not found at {}", config_file.display()));
+        return Err(format!(
+            "Profile configuration not found at {}",
+            config_file.display()
+        ));
     }
 
     let config_raw = fs::read_to_string(&config_file)
         .map_err(|e| format!("Failed to read config file: {}", e))?;
-    let config_json: serde_json::Value = serde_json::from_str(&config_raw)
-        .map_err(|e| format!("Invalid JSON in config: {}", e))?;
+    let config_json: serde_json::Value =
+        serde_json::from_str(&config_raw).map_err(|e| format!("Invalid JSON in config: {}", e))?;
 
-    let profile: Profile = serde_json::from_value(config_json.get("profile").cloned().unwrap_or_default())
-        .map_err(|e| format!("Failed to deserialize profile: {}", e))?;
-    let repo: RepoConfig = serde_json::from_value(config_json.get("repo").cloned().unwrap_or_default())
-        .map_err(|e| format!("Failed to deserialize repo: {}", e))?;
+    let profile: Profile =
+        serde_json::from_value(config_json.get("profile").cloned().unwrap_or_default())
+            .map_err(|e| format!("Failed to deserialize profile: {}", e))?;
+    let repo: RepoConfig =
+        serde_json::from_value(config_json.get("repo").cloned().unwrap_or_default())
+            .map_err(|e| format!("Failed to deserialize repo: {}", e))?;
 
     // Read secrets file (0600)
     let secret_file = secrets_dir.join(format!("{}.env", profile_id));
     let mut creds = SessionCredentials::default();
-    if secret_file.is_file() {
-        if let Ok(content) = fs::read_to_string(&secret_file) {
-            for line in content.lines() {
-                let trimmed = line.trim();
-                if let Some((k, v)) = trimmed.split_once('=') {
-                    match k.trim() {
-                        "RESTIC_PASSWORD" => creds.password = Some(v.trim().to_string()),
-                        "AWS_SECRET_ACCESS_KEY" => creds.b2_application_key = Some(v.trim().to_string()),
-                        _ => {}
+    if secret_file.is_file()
+        && let Ok(content) = fs::read_to_string(&secret_file)
+    {
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if let Some((k, v)) = trimmed.split_once('=') {
+                match k.trim() {
+                    "RESTIC_PASSWORD" => creds.password = Some(v.trim().to_string()),
+                    "AWS_SECRET_ACCESS_KEY" => {
+                        creds.b2_application_key = Some(v.trim().to_string())
                     }
+                    _ => {}
                 }
             }
         }
@@ -52,16 +59,17 @@ pub fn execute_unattended_runner(profile_id: &str, base_dir: &Path) -> Result<i3
 
     // 1. Single-instance lock to prevent overlapping runs
     let lock_file = locks_dir.join(format!("{}.lock", profile_id));
-    if lock_file.is_file() {
-        if let Ok(pid_str) = fs::read_to_string(&lock_file) {
-            if let Ok(pid) = pid_str.trim().parse::<i32>() {
-                if is_pid_alive(pid) {
-                    let msg = format!("Skipping backup: another instance (PID {}) is already running.", pid);
-                    append_log(&logs_dir, profile_id, &msg);
-                    return Ok(0);
-                }
-            }
-        }
+    if lock_file.is_file()
+        && let Ok(pid_str) = fs::read_to_string(&lock_file)
+        && let Ok(pid) = pid_str.trim().parse::<i32>()
+        && is_pid_alive(pid)
+    {
+        let msg = format!(
+            "Skipping backup: another instance (PID {}) is already running.",
+            pid
+        );
+        append_log(&logs_dir, profile_id, &msg);
+        return Ok(0);
     }
 
     let current_pid = std::process::id();
@@ -140,7 +148,10 @@ pub fn execute_unattended_runner(profile_id: &str, base_dir: &Path) -> Result<i3
     }
 
     if !connected {
-        let err_msg = format!("Unattended run aborted: network/repo unreachable after 3 attempts: {}", last_conn_err);
+        let err_msg = format!(
+            "Unattended run aborted: network/repo unreachable after 3 attempts: {}",
+            last_conn_err
+        );
         append_log(&logs_dir, profile_id, &err_msg);
 
         let failed_result = RunResult {
@@ -180,14 +191,22 @@ pub fn execute_unattended_runner(profile_id: &str, base_dir: &Path) -> Result<i3
                 profile_id,
                 &format!(
                     "Backup finished with status '{}' (exit code {}). Duration: {:.2}s. Files: {}. Added: {} bytes.",
-                    result.status, result.exit_code, result.duration_seconds, result.total_files_processed, result.data_added_bytes
+                    result.status,
+                    result.exit_code,
+                    result.duration_seconds,
+                    result.total_files_processed,
+                    result.data_added_bytes
                 ),
             );
             save_status(&status_dir, profile_id, &result);
             Ok(result.exit_code)
         }
         Err(err) => {
-            append_log(&logs_dir, profile_id, &format!("Backup failed with error: {}", err));
+            append_log(
+                &logs_dir,
+                profile_id,
+                &format!("Backup failed with error: {}", err),
+            );
             let failed_result = RunResult {
                 run_id: uuid::Uuid::new_v4().to_string(),
                 profile_id: profile.id.clone(),

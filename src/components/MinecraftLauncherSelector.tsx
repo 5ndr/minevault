@@ -103,10 +103,10 @@ export const MinecraftLauncherSelector: React.FC<MinecraftLauncherSelectorProps>
 
   const handleCustomLauncherSelect = () => {
     setSelectedLauncherId('custom');
-    if (!customPath) {
-      setCustomPath('/Users/declan/Library/Application Support/PrismLauncher');
+    if (!customPath && initialBasePath) {
+      setCustomPath(initialBasePath);
     }
-    refreshInstancesForPath(customPath);
+    refreshInstancesForPath(customPath || initialBasePath || '');
   };
 
   // Open native system folder picker

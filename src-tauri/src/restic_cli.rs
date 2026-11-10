@@ -1,10 +1,10 @@
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
+use std::time::{Duration, Instant};
 
 use crate::models::{
     BackupProgressEvent, IntegrityCheckResult, Profile, RepoConfig, ResticNode, ResticSnapshot,
@@ -23,10 +23,18 @@ pub fn run_command_with_timeout(
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 
-    let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn process: {}", e))?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to spawn process: {}", e))?;
 
-    let mut stdout_handle = child.stdout.take().ok_or_else(|| "Failed to capture stdout".to_string())?;
-    let mut stderr_handle = child.stderr.take().ok_or_else(|| "Failed to capture stderr".to_string())?;
+    let mut stdout_handle = child
+        .stdout
+        .take()
+        .ok_or_else(|| "Failed to capture stdout".to_string())?;
+    let mut stderr_handle = child
+        .stderr
+        .take()
+        .ok_or_else(|| "Failed to capture stderr".to_string())?;
 
     let stdout_thread = thread::spawn(move || {
         let mut buf = Vec::new();
@@ -80,6 +88,12 @@ pub struct ResticEngine {
     binary_path: PathBuf,
 }
 
+impl Default for ResticEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ResticEngine {
     /// Detects or sets the restic binary location.
     pub fn new() -> Self {
@@ -100,31 +114,35 @@ impl ResticEngine {
     /// 2. Persistent local app bin dir (if installed on host)
     /// 3. Standard OS search paths / which restic
     pub fn find_binary() -> PathBuf {
-        let target_bin = if cfg!(windows) { "restic.exe" } else { "restic" };
+        let target_bin = if cfg!(windows) {
+            "restic.exe"
+        } else {
+            "restic"
+        };
 
         // 1. Search relative to current executable (USB controller layout & macOS bundle)
-        if let Ok(current_exe) = std::env::current_exe() {
-            if let Some(parent) = current_exe.parent() {
-                let mut search_dirs = Vec::new();
-                search_dirs.push(parent.to_path_buf());
-                search_dirs.push(parent.join("bin"));
-                // macOS app bundle: ResticDashboard.app/Contents/MacOS -> Resources/bin
-                search_dirs.push(parent.join("../Resources/bin"));
-                search_dirs.push(parent.join("../Resources"));
-                // USB root or subfolder relative:
-                search_dirs.push(parent.join("../bin"));
-                search_dirs.push(parent.join("../../bin"));
-                search_dirs.push(parent.join("../../../bin"));
-                search_dirs.push(parent.join("../../../../bin"));
+        if let Ok(current_exe) = std::env::current_exe()
+            && let Some(parent) = current_exe.parent()
+        {
+            let mut search_dirs = Vec::new();
+            search_dirs.push(parent.to_path_buf());
+            search_dirs.push(parent.join("bin"));
+            // macOS app bundle: ResticDashboard.app/Contents/MacOS -> Resources/bin
+            search_dirs.push(parent.join("../Resources/bin"));
+            search_dirs.push(parent.join("../Resources"));
+            // USB root or subfolder relative:
+            search_dirs.push(parent.join("../bin"));
+            search_dirs.push(parent.join("../../bin"));
+            search_dirs.push(parent.join("../../../bin"));
+            search_dirs.push(parent.join("../../../../bin"));
 
-                for dir in search_dirs {
-                    let candidate = dir.join(target_bin);
-                    if candidate.is_file() {
-                        if let Ok(canon) = candidate.canonicalize() {
-                            return canon;
-                        }
-                        return candidate;
+            for dir in search_dirs {
+                let candidate = dir.join(target_bin);
+                if candidate.is_file() {
+                    if let Ok(canon) = candidate.canonicalize() {
+                        return canon;
                     }
+                    return candidate;
                 }
             }
         }
@@ -205,24 +223,24 @@ impl ResticEngine {
         }
 
         // Credentials via environment variables
-        if let Some(ref pass) = creds.password {
-            if !pass.is_empty() {
-                cmd.env("RESTIC_PASSWORD", pass);
-                sensitive_strings.push(pass.clone());
-            }
+        if let Some(ref pass) = creds.password
+            && !pass.is_empty()
+        {
+            cmd.env("RESTIC_PASSWORD", pass);
+            sensitive_strings.push(pass.clone());
         }
 
-        if let Some(ref key_id) = repo.b2_key_id {
-            if !key_id.is_empty() {
-                cmd.env("AWS_ACCESS_KEY_ID", key_id);
-            }
+        if let Some(ref key_id) = repo.b2_key_id
+            && !key_id.is_empty()
+        {
+            cmd.env("AWS_ACCESS_KEY_ID", key_id);
         }
 
-        if let Some(ref app_key) = creds.b2_application_key {
-            if !app_key.is_empty() {
-                cmd.env("AWS_SECRET_ACCESS_KEY", app_key);
-                sensitive_strings.push(app_key.clone());
-            }
+        if let Some(ref app_key) = creds.b2_application_key
+            && !app_key.is_empty()
+        {
+            cmd.env("AWS_SECRET_ACCESS_KEY", app_key);
+            sensitive_strings.push(app_key.clone());
         }
 
         (cmd, sensitive_strings)
@@ -239,7 +257,13 @@ impl ResticEngine {
             "snapshots",
             repo,
             creds,
-            &["--no-lock", "--json", "--latest", "1", "--stuck-request-timeout=8s"],
+            &[
+                "--no-lock",
+                "--json",
+                "--latest",
+                "1",
+                "--stuck-request-timeout=8s",
+            ],
         );
 
         let output = run_command_with_timeout(cmd, Duration::from_secs(8))?;
@@ -251,7 +275,9 @@ impl ResticEngine {
             Some(0) => Ok("Successfully connected to repository.".to_string()),
             Some(10) => Err("Repository does not exist at specified path/bucket.".to_string()),
             Some(11) => Err("Repository is currently locked by another process.".to_string()),
-            Some(12) => Err("Repository password incorrect or empty password rejected.".to_string()),
+            Some(12) => {
+                Err("Repository password incorrect or empty password rejected.".to_string())
+            }
             Some(code) => Err(format!(
                 "Connection failed (exit code {}): {}",
                 code,
@@ -272,19 +298,19 @@ impl ResticEngine {
         let mut extra_args = vec!["--no-lock", "--json"];
 
         let host_arg;
-        if let Some(h) = host_filter {
-            if !h.trim().is_empty() {
-                host_arg = format!("--host={}", h);
-                extra_args.push(&host_arg);
-            }
+        if let Some(h) = host_filter
+            && !h.trim().is_empty()
+        {
+            host_arg = format!("--host={}", h);
+            extra_args.push(&host_arg);
         }
 
         let path_arg;
-        if let Some(p) = path_filter {
-            if !p.trim().is_empty() {
-                path_arg = format!("--path={}", p);
-                extra_args.push(&path_arg);
-            }
+        if let Some(p) = path_filter
+            && !p.trim().is_empty()
+        {
+            path_arg = format!("--path={}", p);
+            extra_args.push(&path_arg);
         }
 
         let (cmd, sensitive) = self.prepare_command("snapshots", repo, creds, &extra_args);
@@ -357,10 +383,10 @@ impl ResticEngine {
             extra_args.push("--recursive");
         }
         extra_args.push(snapshot_id);
-        if let Some(dir) = dir_filter {
-            if !dir.trim().is_empty() {
-                extra_args.push(dir);
-            }
+        if let Some(dir) = dir_filter
+            && !dir.trim().is_empty()
+        {
+            extra_args.push(dir);
         }
 
         let (cmd, sensitive) = self.prepare_command("ls", repo, creds, &extra_args);
@@ -372,7 +398,10 @@ impl ResticEngine {
         let stderr = redact_secrets(&String::from_utf8_lossy(&output.stderr), &sensitive_slices);
 
         if !output.status.success() {
-            return Err(format!("Failed to list files in snapshot: {}", stderr.trim()));
+            return Err(format!(
+                "Failed to list files in snapshot: {}",
+                stderr.trim()
+            ));
         }
 
         let mut nodes = Vec::new();
@@ -383,7 +412,10 @@ impl ResticEngine {
             }
             if let Ok(node) = serde_json::from_str::<ResticNode>(line) {
                 // Filter out the initial header "message_type: snapshot"
-                if node.node_type == "file" || node.node_type == "dir" || node.node_type == "symlink" {
+                if node.node_type == "file"
+                    || node.node_type == "dir"
+                    || node.node_type == "symlink"
+                {
                     nodes.push(node);
                 }
             }
@@ -474,7 +506,9 @@ impl ResticEngine {
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
 
-        let mut child = cmd.spawn().map_err(|e| format!("Failed to spawn backup process: {}", e))?;
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| format!("Failed to spawn backup process: {}", e))?;
 
         let sensitive_slices: Vec<&str> = sensitive.iter().map(|s| s.as_str()).collect();
         let mut sanitized_logs = String::new();
@@ -503,17 +537,25 @@ impl ResticEngine {
                 if let Ok(v) = serde_json::from_str::<serde_json::Value>(&clean_line) {
                     let msg_type = v.get("message_type").and_then(|s| s.as_str()).unwrap_or("");
                     if msg_type == "status" {
-                        let percent = v.get("percent_done").and_then(|p| p.as_f64()).unwrap_or(0.0) * 100.0;
+                        let percent = v
+                            .get("percent_done")
+                            .and_then(|p| p.as_f64())
+                            .unwrap_or(0.0)
+                            * 100.0;
                         let t_files = v.get("total_files").and_then(|f| f.as_u64()).unwrap_or(0);
                         let f_done = v.get("files_done").and_then(|f| f.as_u64()).unwrap_or(0);
                         let t_bytes = v.get("total_bytes").and_then(|b| b.as_u64()).unwrap_or(0);
                         let b_done = v.get("bytes_done").and_then(|b| b.as_u64()).unwrap_or(0);
-                        let cur_file = v.get("current_files")
+                        let cur_file = v
+                            .get("current_files")
                             .and_then(|cf| cf.as_array())
                             .and_then(|arr| arr.first())
                             .and_then(|val| val.as_str())
                             .map(|s| s.to_string());
-                        let elapsed = v.get("seconds_elapsed").and_then(|s| s.as_u64()).unwrap_or(0);
+                        let elapsed = v
+                            .get("seconds_elapsed")
+                            .and_then(|s| s.as_u64())
+                            .unwrap_or(0);
                         let remaining = v.get("seconds_remaining").and_then(|s| s.as_u64());
 
                         on_progress(BackupProgressEvent {
@@ -528,18 +570,33 @@ impl ResticEngine {
                         });
                     } else if msg_type == "summary" {
                         files_new = v.get("files_new").and_then(|f| f.as_u64()).unwrap_or(0);
-                        files_changed = v.get("files_changed").and_then(|f| f.as_u64()).unwrap_or(0);
-                        files_unmodified = v.get("files_unmodified").and_then(|f| f.as_u64()).unwrap_or(0);
+                        files_changed =
+                            v.get("files_changed").and_then(|f| f.as_u64()).unwrap_or(0);
+                        files_unmodified = v
+                            .get("files_unmodified")
+                            .and_then(|f| f.as_u64())
+                            .unwrap_or(0);
                         data_added = v.get("data_added").and_then(|d| d.as_u64()).unwrap_or(0);
-                        total_files = v.get("total_files_processed").and_then(|tf| tf.as_u64()).unwrap_or(0);
-                        total_bytes = v.get("total_bytes_processed").and_then(|tb| tb.as_u64()).unwrap_or(0);
-                        snapshot_id = v.get("snapshot_id").and_then(|s| s.as_str()).map(|s| s.to_string());
+                        total_files = v
+                            .get("total_files_processed")
+                            .and_then(|tf| tf.as_u64())
+                            .unwrap_or(0);
+                        total_bytes = v
+                            .get("total_bytes_processed")
+                            .and_then(|tb| tb.as_u64())
+                            .unwrap_or(0);
+                        snapshot_id = v
+                            .get("snapshot_id")
+                            .and_then(|s| s.as_str())
+                            .map(|s| s.to_string());
                     }
                 }
             }
         }
 
-        let status = child.wait().map_err(|e| format!("Failed to wait for child: {}", e))?;
+        let status = child
+            .wait()
+            .map_err(|e| format!("Failed to wait for child: {}", e))?;
         let end_time_chrono = chrono::Utc::now();
         let duration = (end_time_chrono - start_time_chrono).num_milliseconds() as f64 / 1000.0;
 
@@ -555,7 +612,10 @@ impl ResticEngine {
 
         let error_message = match exit_code {
             0 => None,
-            3 => Some("Completed with warnings: some source data could not be read (snapshot created).".to_string()),
+            3 => Some(
+                "Completed with warnings: some source data could not be read (snapshot created)."
+                    .to_string(),
+            ),
             10 => Some("Repository does not exist.".to_string()),
             11 => Some("Repository is already locked by another process.".to_string()),
             12 => Some("Invalid repository password.".to_string()),
@@ -563,15 +623,14 @@ impl ResticEngine {
         };
 
         // Enforce retention policy if configured, protecting pinned / important snapshots
-        if exit_code == 0 || exit_code == 3 {
-            if let Some(keep_last) = profile.keep_last {
-                if keep_last > 0 {
-                    if let Ok(forget_out) = self.run_forget_policy(repo, creds, keep_last, &["important", "pinned"]) {
-                        sanitized_logs.push_str("\n--- Retention Policy Pruned Old Backups ---\n");
-                        sanitized_logs.push_str(&forget_out);
-                    }
-                }
-            }
+        if (exit_code == 0 || exit_code == 3)
+            && let Some(keep_last) = profile.keep_last
+            && keep_last > 0
+            && let Ok(forget_out) =
+                self.run_forget_policy(repo, creds, keep_last, &["important", "pinned"])
+        {
+            sanitized_logs.push_str("\n--- Retention Policy Pruned Old Backups ---\n");
+            sanitized_logs.push_str(&forget_out);
         }
 
         Ok(RunResult {
@@ -672,7 +731,10 @@ impl ResticEngine {
             return Err(format!("Tag operation failed: {}", stderr.trim()));
         }
 
-        Ok(format!("Snapshot {} tags updated.", &snapshot_id[..8.min(snapshot_id.len())]))
+        Ok(format!(
+            "Snapshot {} tags updated.",
+            &snapshot_id[..8.min(snapshot_id.len())]
+        ))
     }
 
     /// Permanently deletes a single specific snapshot by ID, with optional prune.
@@ -689,7 +751,11 @@ impl ResticEngine {
         }
 
         let (cmd, sensitive) = self.prepare_command("forget", repo, creds, &extra_args);
-        let timeout = if prune { Duration::from_secs(1800) } else { Duration::from_secs(30) };
+        let timeout = if prune {
+            Duration::from_secs(1800)
+        } else {
+            Duration::from_secs(30)
+        };
         let output = run_command_with_timeout(cmd, timeout)?;
 
         let sensitive_slices: Vec<&str> = sensitive.iter().map(|s| s.as_str()).collect();
@@ -777,7 +843,11 @@ impl ResticEngine {
         }
 
         let (cmd, sensitive) = self.prepare_command("check", repo, creds, &extra_args);
-        let timeout = if read_data { Duration::from_secs(600) } else { Duration::from_secs(120) };
+        let timeout = if read_data {
+            Duration::from_secs(600)
+        } else {
+            Duration::from_secs(120)
+        };
         let output = run_command_with_timeout(cmd, timeout)?;
 
         let sensitive_slices: Vec<&str> = sensitive.iter().map(|s| s.as_str()).collect();

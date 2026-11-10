@@ -52,6 +52,7 @@ interface SnapshotBrowserProps {
   onTogglePin?: (snapshotId: string, pinned: boolean) => Promise<void>;
   onRunForget?: (keepLast: number) => Promise<void>;
   onDeleteSnapshot?: (snapshotId: string, prune: boolean) => Promise<void>;
+  defaultRestoreBaseDir?: string;
 }
 
 const FOLDER_PAGE_SIZE = 100;
@@ -73,6 +74,7 @@ export const SnapshotBrowser: React.FC<SnapshotBrowserProps> = ({
   onTogglePin,
   onRunForget,
   onDeleteSnapshot,
+  defaultRestoreBaseDir = '~/Restored_Backups',
 }) => {
   // Left: Snapshots list filters
   const [hostFilter, setHostFilter] = useState<string>('all');
@@ -112,7 +114,7 @@ export const SnapshotBrowser: React.FC<SnapshotBrowserProps> = ({
   useEffect(() => {
     if (selectedSnapshot) {
       const snapShort = selectedSnapshot.short_id || selectedSnapshot.id?.substring(0, 8) || 'snapshot';
-      const defaultSafeFolder = `/Users/declan/Restored_Backups/${snapShort}`;
+      const defaultSafeFolder = `${defaultRestoreBaseDir.replace(/[/\\]$/, '')}/${snapShort}`;
       const launcherInfo = detectLauncherFromSnapshot(selectedSnapshot);
 
       if (launcherInfo.originalPath) {
@@ -1068,7 +1070,7 @@ export const SnapshotBrowser: React.FC<SnapshotBrowserProps> = ({
               {(() => {
                 const launcherInfo = detectLauncherFromSnapshot(selectedSnapshot);
                 const snapShort = selectedSnapshot.short_id || selectedSnapshot.id.substring(0, 8);
-                const defaultSafeFolder = `/Users/declan/Restored_Backups/${snapShort}`;
+                const defaultSafeFolder = `${defaultRestoreBaseDir.replace(/[/\\]$/, '')}/${snapShort}`;
 
                 return (
                   <>
@@ -1183,7 +1185,7 @@ export const SnapshotBrowser: React.FC<SnapshotBrowserProps> = ({
                           type="text"
                           value={targetDir}
                           onChange={(e) => setTargetDir(e.target.value)}
-                          placeholder="/Users/declan/Restored_Backups"
+                          placeholder={defaultRestoreBaseDir}
                           className="flex-1 font-mono text-xs"
                         />
                         <button

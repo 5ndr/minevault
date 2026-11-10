@@ -1,7 +1,7 @@
-use std::collections::{HashMap, HashSet};
-use std::process::Command;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+use std::process::Command;
 
 use crate::models::{RepoConfig, SessionCredentials};
 use crate::system::get_persistent_app_dir;
@@ -65,19 +65,17 @@ struct B2AuthResponse {
 
 impl B2AuthResponse {
     pub fn get_api_url(&self) -> Result<String, String> {
-        if let Some(url) = &self.api_url {
-            if !url.trim().is_empty() {
-                return Ok(url.trim().to_string());
-            }
+        if let Some(url) = &self.api_url
+            && !url.trim().is_empty()
+        {
+            return Ok(url.trim().to_string());
         }
-        if let Some(info) = &self.api_info {
-            if let Some(storage) = &info.storage_api {
-                if let Some(url) = &storage.api_url {
-                    if !url.trim().is_empty() {
-                        return Ok(url.trim().to_string());
-                    }
-                }
-            }
+        if let Some(info) = &self.api_info
+            && let Some(storage) = &info.storage_api
+            && let Some(url) = &storage.api_url
+            && !url.trim().is_empty()
+        {
+            return Ok(url.trim().to_string());
         }
         Err("Missing 'apiUrl' in B2 authorization response".to_string())
     }
@@ -188,14 +186,14 @@ fn resolve_b2_credentials(
         .clone()
         .or_else(|| creds.b2_application_key.clone());
 
-    if key_id.is_none() || app_key.is_none() {
-        if let Ok(vault) = crate::usb_vault::load_usb_vault(None) {
-            if key_id.is_none() {
-                key_id = vault.b2_management_key_id.or(vault.b2_key_id);
-            }
-            if app_key.is_none() {
-                app_key = vault.b2_management_app_key.or(vault.b2_application_key);
-            }
+    if (key_id.is_none() || app_key.is_none())
+        && let Ok(vault) = crate::usb_vault::load_usb_vault(None)
+    {
+        if key_id.is_none() {
+            key_id = vault.b2_management_key_id.or(vault.b2_key_id);
+        }
+        if app_key.is_none() {
+            app_key = vault.b2_management_app_key.or(vault.b2_application_key);
         }
     }
 
@@ -220,10 +218,15 @@ fn authorize_b2(key_id: &str, app_key: &str) -> Result<B2AuthResponse, String> {
         .arg(&auth_arg)
         .arg("https://api.backblazeb2.com/b2api/v3/b2_authorize_account");
 
-    let auth_out = auth_cmd.output().map_err(|e| format!("Failed to execute curl: {}", e))?;
+    let auth_out = auth_cmd
+        .output()
+        .map_err(|e| format!("Failed to execute curl: {}", e))?;
     if !auth_out.status.success() {
         let err_text = String::from_utf8_lossy(&auth_out.stderr);
-        return Err(format!("B2 Authorize Account network error: {}", err_text.trim()));
+        return Err(format!(
+            "B2 Authorize Account network error: {}",
+            err_text.trim()
+        ));
     }
 
     let auth_str = String::from_utf8_lossy(&auth_out.stdout);
@@ -231,8 +234,12 @@ fn authorize_b2(key_id: &str, app_key: &str) -> Result<B2AuthResponse, String> {
         return Err(format!("B2 Authentication failed: {}", auth_str.trim()));
     }
 
-    let auth_resp: B2AuthResponse = serde_json::from_str(&auth_str)
-        .map_err(|e| format!("Failed to parse B2 authorization response: {} (response: {})", e, auth_str))?;
+    let auth_resp: B2AuthResponse = serde_json::from_str(&auth_str).map_err(|e| {
+        format!(
+            "Failed to parse B2 authorization response: {} (response: {})",
+            e, auth_str
+        )
+    })?;
 
     Ok(auth_resp)
 }
@@ -262,7 +269,9 @@ fn get_b2_bucket(
         .arg(list_buckets_body.to_string())
         .arg(&list_buckets_url);
 
-    let list_out = list_cmd.output().map_err(|e| format!("Failed to list B2 buckets: {}", e))?;
+    let list_out = list_cmd
+        .output()
+        .map_err(|e| format!("Failed to list B2 buckets: {}", e))?;
     let mut list_str = String::from_utf8_lossy(&list_out.stdout).to_string();
 
     if list_str.contains("\"status\": 404") || list_str.contains("\"code\": \"not_found\"") {
@@ -284,14 +293,23 @@ fn get_b2_bucket(
         }
     }
 
-    let list_resp: B2ListBucketsResponse = serde_json::from_str(&list_str)
-        .map_err(|e| format!("Failed to parse B2 bucket list: {} (response: {})", e, list_str))?;
+    let list_resp: B2ListBucketsResponse = serde_json::from_str(&list_str).map_err(|e| {
+        format!(
+            "Failed to parse B2 bucket list: {} (response: {})",
+            e, list_str
+        )
+    })?;
 
     let bucket_entry = list_resp
         .buckets
         .into_iter()
         .find(|b| b.bucket_name.eq_ignore_ascii_case(bucket_name))
-        .ok_or_else(|| format!("Bucket '{}' was not found or is inaccessible with this B2 key.", bucket_name))?;
+        .ok_or_else(|| {
+            format!(
+                "Bucket '{}' was not found or is inaccessible with this B2 key.",
+                bucket_name
+            )
+        })?;
 
     Ok(bucket_entry)
 }
@@ -316,7 +334,12 @@ pub fn query_b2_bucket_usage(
 
     let auth_resp = authorize_b2(&key_id, &app_key)?;
     let api_url = auth_resp.get_api_url()?;
-    let bucket_entry = get_b2_bucket(&api_url, &auth_resp.authorization_token, &auth_resp.account_id, &bucket_name)?;
+    let bucket_entry = get_b2_bucket(
+        &api_url,
+        &auth_resp.authorization_token,
+        &auth_resp.account_id,
+        &bucket_name,
+    )?;
     let has_lifecycle_rules = !bucket_entry.lifecycle_rules.is_empty();
 
     // 1. Measure Active (Visible) Files via b2_list_file_names
@@ -353,10 +376,15 @@ pub fn query_b2_bucket_usage(
             .arg(req_body.to_string())
             .arg(&list_files_url);
 
-        let files_out = files_cmd.output().map_err(|e| format!("Failed to list files: {}", e))?;
+        let files_out = files_cmd
+            .output()
+            .map_err(|e| format!("Failed to list files: {}", e))?;
         let mut files_str = String::from_utf8_lossy(&files_out.stdout).to_string();
 
-        if iterations == 1 && (files_str.contains("\"status\": 404") || files_str.contains("\"code\": \"not_found\"")) {
+        if iterations == 1
+            && (files_str.contains("\"status\": 404")
+                || files_str.contains("\"code\": \"not_found\""))
+        {
             list_files_url = format!("{}/b2api/v2/b2_list_file_names", api_url);
             let mut v2_cmd = Command::new("curl");
             v2_cmd
@@ -435,10 +463,14 @@ pub fn query_b2_bucket_usage(
             .arg(body.to_string())
             .arg(&list_versions_url);
 
-        let v_out = v_cmd.output().map_err(|e| format!("Failed to list versions: {}", e))?;
+        let v_out = v_cmd
+            .output()
+            .map_err(|e| format!("Failed to list versions: {}", e))?;
         let mut v_str = String::from_utf8_lossy(&v_out.stdout).to_string();
 
-        if iterations == 1 && (v_str.contains("\"status\": 404") || v_str.contains("\"code\": \"not_found\"")) {
+        if iterations == 1
+            && (v_str.contains("\"status\": 404") || v_str.contains("\"code\": \"not_found\""))
+        {
             list_versions_url = format!("{}/b2api/v2/b2_list_file_versions", api_url);
             let mut v2_cmd = Command::new("curl");
             v2_cmd
@@ -505,7 +537,11 @@ pub fn query_b2_bucket_usage(
 
     let usage = B2ProviderUsage {
         total_bytes,
-        file_count: if total_version_count > 0 { total_version_count } else { active_file_count },
+        file_count: if total_version_count > 0 {
+            total_version_count
+        } else {
+            active_file_count
+        },
         bucket_name,
         prefix,
         measured_at: Utc::now().to_rfc3339(),
@@ -537,10 +573,18 @@ pub fn apply_b2_lifecycle_rules(
     } else if let Some((_, b, p)) = parse_b2_target(&repo.target) {
         (b, p)
     } else {
-        return Err(format!("Could not parse B2 bucket name from target URL '{}'", repo.target));
+        return Err(format!(
+            "Could not parse B2 bucket name from target URL '{}'",
+            repo.target
+        ));
     };
 
-    let bucket_entry = get_b2_bucket(&api_url, &auth_resp.authorization_token, &auth_resp.account_id, &bucket_name)?;
+    let bucket_entry = get_b2_bucket(
+        &api_url,
+        &auth_resp.authorization_token,
+        &auth_resp.account_id,
+        &bucket_name,
+    )?;
 
     let mut update_url = format!("{}/b2api/v3/b2_update_bucket", api_url);
     let body = serde_json::json!({
@@ -567,7 +611,9 @@ pub fn apply_b2_lifecycle_rules(
         .arg(body.to_string())
         .arg(&update_url);
 
-    let out = update_cmd.output().map_err(|e| format!("Failed to update bucket: {}", e))?;
+    let out = update_cmd
+        .output()
+        .map_err(|e| format!("Failed to update bucket: {}", e))?;
     let mut out_str = String::from_utf8_lossy(&out.stdout).to_string();
 
     if out_str.contains("\"status\": 404") || out_str.contains("\"code\": \"not_found\"") {
@@ -621,10 +667,18 @@ pub fn purge_b2_hidden_versions(
     } else if let Some((_, b, p)) = parse_b2_target(&repo.target) {
         (b, p)
     } else {
-        return Err(format!("Could not parse B2 bucket name from target URL '{}'", repo.target));
+        return Err(format!(
+            "Could not parse B2 bucket name from target URL '{}'",
+            repo.target
+        ));
     };
 
-    let bucket_entry = get_b2_bucket(&api_url, &auth_resp.authorization_token, &auth_resp.account_id, &bucket_name)?;
+    let bucket_entry = get_b2_bucket(
+        &api_url,
+        &auth_resp.authorization_token,
+        &auth_resp.account_id,
+        &bucket_name,
+    )?;
     let prefix_filter = prefix.clone().unwrap_or_default();
 
     // 2. BUILD ACTIVE FILE WHITELIST
@@ -660,10 +714,15 @@ pub fn purge_b2_hidden_versions(
             .arg(req_body.to_string())
             .arg(&list_files_url);
 
-        let files_out = files_cmd.output().map_err(|e| format!("Failed to list active files: {}", e))?;
+        let files_out = files_cmd
+            .output()
+            .map_err(|e| format!("Failed to list active files: {}", e))?;
         let mut files_str = String::from_utf8_lossy(&files_out.stdout).to_string();
 
-        if iterations == 1 && (files_str.contains("\"status\": 404") || files_str.contains("\"code\": \"not_found\"")) {
+        if iterations == 1
+            && (files_str.contains("\"status\": 404")
+                || files_str.contains("\"code\": \"not_found\""))
+        {
             list_files_url = format!("{}/b2api/v2/b2_list_file_names", api_url);
             let mut v2_cmd = Command::new("curl");
             v2_cmd
@@ -686,8 +745,13 @@ pub fn purge_b2_hidden_versions(
             return Err(format!("B2 list file names error: {}", files_str.trim()));
         }
 
-        let files_resp: B2ListFileNamesResponse = serde_json::from_str(&files_str)
-            .map_err(|e| format!("Failed to parse B2 active files: {} (response: {})", e, files_str))?;
+        let files_resp: B2ListFileNamesResponse =
+            serde_json::from_str(&files_str).map_err(|e| {
+                format!(
+                    "Failed to parse B2 active files: {} (response: {})",
+                    e, files_str
+                )
+            })?;
 
         for file in files_resp.files {
             if let Some(fid) = file.file_id {
@@ -712,7 +776,9 @@ pub fn purge_b2_hidden_versions(
     }
 
     // Safety check 2: Anchor check - verify restic config file is present among active files
-    let has_restic_anchor = active_file_names.iter().any(|n| n.ends_with("/config") || n == "config");
+    let has_restic_anchor = active_file_names
+        .iter()
+        .any(|n| n.ends_with("/config") || n == "config");
     if !has_restic_anchor {
         return Err("Safety abort: Restic repository 'config' file not found among active files. Check bucket/prefix configuration.".to_string());
     }
@@ -751,10 +817,14 @@ pub fn purge_b2_hidden_versions(
             .arg(body.to_string())
             .arg(&list_versions_url);
 
-        let out = cmd.output().map_err(|e| format!("Failed to list file versions: {}", e))?;
+        let out = cmd
+            .output()
+            .map_err(|e| format!("Failed to list file versions: {}", e))?;
         let mut out_str = String::from_utf8_lossy(&out.stdout).to_string();
 
-        if iterations == 1 && (out_str.contains("\"status\": 404") || out_str.contains("\"code\": \"not_found\"")) {
+        if iterations == 1
+            && (out_str.contains("\"status\": 404") || out_str.contains("\"code\": \"not_found\""))
+        {
             list_versions_url = format!("{}/b2api/v2/b2_list_file_versions", api_url);
             let mut v2_cmd = Command::new("curl");
             v2_cmd
@@ -777,8 +847,12 @@ pub fn purge_b2_hidden_versions(
             return Err(format!("B2 list file versions error: {}", out_str.trim()));
         }
 
-        let resp: B2ListFileVersionsResponse = serde_json::from_str(&out_str)
-            .map_err(|e| format!("Failed to parse file versions: {} (response: {})", e, out_str))?;
+        let resp: B2ListFileVersionsResponse = serde_json::from_str(&out_str).map_err(|e| {
+            format!(
+                "Failed to parse file versions: {} (response: {})",
+                e, out_str
+            )
+        })?;
 
         for f in resp.files {
             // HARD WHITELIST CHECK:
@@ -846,7 +920,10 @@ pub fn purge_b2_hidden_versions(
                     if let Ok(o) = out {
                         let stdout_str = String::from_utf8_lossy(&o.stdout);
                         // Verified deletion check: must succeed and contain fileId
-                        if o.status.success() && stdout_str.contains("\"fileId\"") && !stdout_str.contains("\"code\":") {
+                        if o.status.success()
+                            && stdout_str.contains("\"fileId\"")
+                            && !stdout_str.contains("\"code\":")
+                        {
                             return Some(clen);
                         }
                     }
@@ -877,18 +954,20 @@ pub fn save_cached_b2_usage(usage: &B2ProviderUsage) {
     let base_dir = get_persistent_app_dir();
     let file = base_dir.join("b2_provider_usage.json");
     let _ = std::fs::create_dir_all(&base_dir);
-    let _ = std::fs::write(&file, serde_json::to_string_pretty(usage).unwrap_or_default());
+    let _ = std::fs::write(
+        &file,
+        serde_json::to_string_pretty(usage).unwrap_or_default(),
+    );
 }
 
 pub fn load_cached_b2_usage() -> Option<B2ProviderUsage> {
     let base_dir = get_persistent_app_dir();
     let file = base_dir.join("b2_provider_usage.json");
-    if file.is_file() {
-        if let Ok(content) = std::fs::read_to_string(&file) {
-            if let Ok(usage) = serde_json::from_str::<B2ProviderUsage>(&content) {
-                return Some(usage);
-            }
-        }
+    if file.is_file()
+        && let Ok(content) = std::fs::read_to_string(&file)
+        && let Ok(usage) = serde_json::from_str::<B2ProviderUsage>(&content)
+    {
+        return Some(usage);
     }
     None
 }
@@ -899,17 +978,23 @@ mod tests {
 
     #[test]
     fn test_parse_b2_target() {
-        let (host, bucket, prefix) = parse_b2_target("s3:https://s3.us-east-005.backblazeb2.com/PrismBackups/minecraft").unwrap();
+        let (host, bucket, prefix) =
+            parse_b2_target("s3:https://s3.us-east-005.backblazeb2.com/PrismBackups/minecraft")
+                .unwrap();
         assert_eq!(host, "s3.us-east-005.backblazeb2.com");
         assert_eq!(bucket, "PrismBackups");
         assert_eq!(prefix, Some("minecraft".to_string()));
 
-        let (host2, bucket2, prefix2) = parse_b2_target("s3:https://s3.us-west-004.backblazeb2.com/my-bucket").unwrap();
+        let (host2, bucket2, prefix2) =
+            parse_b2_target("s3:https://s3.us-west-004.backblazeb2.com/my-bucket").unwrap();
         assert_eq!(host2, "s3.us-west-004.backblazeb2.com");
         assert_eq!(bucket2, "my-bucket");
         assert_eq!(prefix2, None);
 
-        let (host3, bucket3, prefix3) = parse_b2_target("https://s3.us-east-005.backblazeb2.com/PrismBackups/nested/subfolder/").unwrap();
+        let (host3, bucket3, prefix3) = parse_b2_target(
+            "https://s3.us-east-005.backblazeb2.com/PrismBackups/nested/subfolder/",
+        )
+        .unwrap();
         assert_eq!(host3, "s3.us-east-005.backblazeb2.com");
         assert_eq!(bucket3, "PrismBackups");
         assert_eq!(prefix3, Some("nested/subfolder".to_string()));
@@ -938,7 +1023,13 @@ mod tests {
 
         let auth_resp: B2AuthResponse = serde_json::from_str(json_str).unwrap();
         assert_eq!(auth_resp.account_id, "673c7b2a023e");
-        assert_eq!(auth_resp.authorization_token, "4_005673c7b2a023e0000000000_01c8543c_7028a2_acct_7XufW3NqSp1WR3AmRc-l-Ol3g54=");
-        assert_eq!(auth_resp.get_api_url().unwrap(), "https://api005.backblazeb2.com");
+        assert_eq!(
+            auth_resp.authorization_token,
+            "4_005673c7b2a023e0000000000_01c8543c_7028a2_acct_7XufW3NqSp1WR3AmRc-l-Ol3g54="
+        );
+        assert_eq!(
+            auth_resp.get_api_url().unwrap(),
+            "https://api005.backblazeb2.com"
+        );
     }
 }

@@ -3,7 +3,7 @@ use std::path::Path;
 use std::process::Command;
 
 use crate::models::{Profile, RepoConfig, RunResult, SchedulerStatus, SessionCredentials};
-use crate::scheduler::{setup_persistent_local_files, SchedulerAdapter};
+use crate::scheduler::{SchedulerAdapter, setup_persistent_local_files};
 use crate::system::get_persistent_app_dir;
 
 pub struct WindowsTaskSchedulerAdapter;
@@ -15,6 +15,12 @@ impl WindowsTaskSchedulerAdapter {
 
     fn task_name(profile_id: &str) -> String {
         format!("ResticDashboard_{}", profile_id.replace('-', "_"))
+    }
+}
+
+impl Default for WindowsTaskSchedulerAdapter {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -30,7 +36,10 @@ impl SchedulerAdapter for WindowsTaskSchedulerAdapter {
         creds: &SessionCredentials,
         restic_bin: &Path,
     ) -> Result<SchedulerStatus, String> {
-        let schedule = profile.schedule.as_ref().ok_or("No schedule configured on profile")?;
+        let schedule = profile
+            .schedule
+            .as_ref()
+            .ok_or("No schedule configured on profile")?;
         let base_dir = get_persistent_app_dir();
 
         // 1. Setup persistent files
@@ -54,7 +63,9 @@ impl SchedulerAdapter for WindowsTaskSchedulerAdapter {
 
         // Run schtasks.exe /create
         let output = Command::new("schtasks.exe")
-            .args(["/create", "/tn", &tn, "/tr", &tr, "/sc", sc, "/st", &st, "/f"])
+            .args([
+                "/create", "/tn", &tn, "/tr", &tr, "/sc", sc, "/st", &st, "/f",
+            ])
             .output()
             .map_err(|e| format!("Failed to execute schtasks.exe: {}", e))?;
 
@@ -85,7 +96,11 @@ impl SchedulerAdapter for WindowsTaskSchedulerAdapter {
 
         // Clean up persistent configs/secrets
         let base_dir = get_persistent_app_dir();
-        let _ = fs::remove_file(base_dir.join("configs").join(format!("{}.json", profile_id)));
+        let _ = fs::remove_file(
+            base_dir
+                .join("configs")
+                .join(format!("{}.json", profile_id)),
+        );
         let _ = fs::remove_file(base_dir.join("secrets").join(format!("{}.env", profile_id)));
 
         Ok(())
@@ -119,17 +134,18 @@ impl SchedulerAdapter for WindowsTaskSchedulerAdapter {
         };
 
         let base_dir = get_persistent_app_dir();
-        let config_path = base_dir.join("configs").join(format!("{}.json", profile_id));
+        let config_path = base_dir
+            .join("configs")
+            .join(format!("{}.json", profile_id));
         let runner_path = base_dir.join("bin").join("resticdashboard-runner.exe");
 
         let mut last_run = None;
         let status_file = base_dir.join("status").join(format!("{}.json", profile_id));
-        if status_file.is_file() {
-            if let Ok(content) = fs::read_to_string(&status_file) {
-                if let Ok(run) = serde_json::from_str::<RunResult>(&content) {
-                    last_run = Some(run);
-                }
-            }
+        if status_file.is_file()
+            && let Ok(content) = fs::read_to_string(&status_file)
+            && let Ok(run) = serde_json::from_str::<RunResult>(&content)
+        {
+            last_run = Some(run);
         }
 
         let notes = if installed {

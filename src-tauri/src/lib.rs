@@ -10,15 +10,18 @@ pub mod security;
 pub mod system;
 pub mod usb_vault;
 
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
 use commands::AppState;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let cancel_flag = Arc::new(AtomicBool::new(false));
     let is_backup_running = Arc::new(AtomicBool::new(false));
-    let state = AppState { cancel_flag, is_backup_running };
+    let state = AppState {
+        cancel_flag,
+        is_backup_running,
+    };
 
     tauri::Builder::default()
         .manage(state)

@@ -1,5 +1,5 @@
-use std::path::{Path, PathBuf};
 use crate::models::LauncherDescriptor;
+use std::path::{Path, PathBuf};
 
 /// Returns a stable machine identifier for filtering backups per machine.
 pub fn get_machine_id() -> String {
@@ -11,22 +11,21 @@ pub fn get_machine_id() -> String {
 /// Returns a readable machine name (hostname).
 pub fn get_machine_name() -> String {
     // Try reading hostname from env or libc
-    if let Ok(host) = std::env::var("HOSTNAME") {
-        if !host.trim().is_empty() {
-            return host.trim().to_string();
-        }
+    if let Ok(host) = std::env::var("HOSTNAME")
+        && !host.trim().is_empty()
+    {
+        return host.trim().to_string();
     }
 
     #[cfg(unix)]
     {
         let mut buf = [0u8; 256];
         let res = unsafe { libc::gethostname(buf.as_mut_ptr() as *mut libc::c_char, buf.len()) };
-        if res == 0 {
-            if let Ok(s) = std::ffi::CStr::from_bytes_until_nul(&buf) {
-                if let Ok(str_slice) = s.to_str() {
-                    return str_slice.to_string();
-                }
-            }
+        if res == 0
+            && let Ok(s) = std::ffi::CStr::from_bytes_until_nul(&buf)
+            && let Ok(str_slice) = s.to_str()
+        {
+            return str_slice.to_string();
         }
     }
 
@@ -150,7 +149,8 @@ pub fn detect_all_launchers() -> Vec<LauncherDescriptor> {
 
     // 1. Prism Launcher
     let prism_path = if cfg!(target_os = "macos") {
-        home.as_ref().map(|h| h.join("Library/Application Support/PrismLauncher"))
+        home.as_ref()
+            .map(|h| h.join("Library/Application Support/PrismLauncher"))
     } else if cfg!(target_os = "windows") {
         app_data.as_ref().map(|a| a.join("PrismLauncher"))
     } else {
@@ -158,7 +158,11 @@ pub fn detect_all_launchers() -> Vec<LauncherDescriptor> {
     };
     if let Some(p) = prism_path {
         let detected = p.exists();
-        let instances = if detected { scan_instances_in_path(&p) } else { Vec::new() };
+        let instances = if detected {
+            scan_instances_in_path(&p)
+        } else {
+            Vec::new()
+        };
         launchers.push(LauncherDescriptor {
             id: "prism".to_string(),
             name: "Prism Launcher".to_string(),
@@ -170,7 +174,8 @@ pub fn detect_all_launchers() -> Vec<LauncherDescriptor> {
 
     // 2. Modrinth App (Theseus)
     let modrinth_path = if cfg!(target_os = "macos") {
-        home.as_ref().map(|h| h.join("Library/Application Support/com.modrinth.theseus"))
+        home.as_ref()
+            .map(|h| h.join("Library/Application Support/com.modrinth.theseus"))
     } else if cfg!(target_os = "windows") {
         app_data.as_ref().map(|a| a.join("com.modrinth.theseus"))
     } else {
@@ -178,7 +183,11 @@ pub fn detect_all_launchers() -> Vec<LauncherDescriptor> {
     };
     if let Some(p) = modrinth_path {
         let detected = p.exists();
-        let instances = if detected { scan_instances_in_path(&p) } else { Vec::new() };
+        let instances = if detected {
+            scan_instances_in_path(&p)
+        } else {
+            Vec::new()
+        };
         launchers.push(LauncherDescriptor {
             id: "modrinth".to_string(),
             name: "Modrinth App".to_string(),
@@ -190,7 +199,8 @@ pub fn detect_all_launchers() -> Vec<LauncherDescriptor> {
 
     // 3. CurseForge
     let curseforge_path = if cfg!(target_os = "macos") {
-        home.as_ref().map(|h| h.join("Documents/curseforge/minecraft"))
+        home.as_ref()
+            .map(|h| h.join("Documents/curseforge/minecraft"))
     } else if cfg!(target_os = "windows") {
         home.as_ref().map(|h| h.join("curseforge/minecraft"))
     } else {
@@ -198,7 +208,11 @@ pub fn detect_all_launchers() -> Vec<LauncherDescriptor> {
     };
     if let Some(p) = curseforge_path {
         let detected = p.exists();
-        let instances = if detected { scan_instances_in_path(&p) } else { Vec::new() };
+        let instances = if detected {
+            scan_instances_in_path(&p)
+        } else {
+            Vec::new()
+        };
         launchers.push(LauncherDescriptor {
             id: "curseforge".to_string(),
             name: "CurseForge".to_string(),
@@ -210,7 +224,8 @@ pub fn detect_all_launchers() -> Vec<LauncherDescriptor> {
 
     // 4. Official Minecraft (Vanilla)
     let vanilla_path = if cfg!(target_os = "macos") {
-        home.as_ref().map(|h| h.join("Library/Application Support/minecraft"))
+        home.as_ref()
+            .map(|h| h.join("Library/Application Support/minecraft"))
     } else if cfg!(target_os = "windows") {
         app_data.as_ref().map(|a| a.join(".minecraft"))
     } else {
@@ -218,7 +233,11 @@ pub fn detect_all_launchers() -> Vec<LauncherDescriptor> {
     };
     if let Some(p) = vanilla_path {
         let detected = p.exists();
-        let instances = if detected { scan_instances_in_path(&p) } else { Vec::new() };
+        let instances = if detected {
+            scan_instances_in_path(&p)
+        } else {
+            Vec::new()
+        };
         launchers.push(LauncherDescriptor {
             id: "vanilla".to_string(),
             name: "Official Minecraft (Vanilla)".to_string(),
@@ -230,7 +249,8 @@ pub fn detect_all_launchers() -> Vec<LauncherDescriptor> {
 
     // 5. ATLauncher
     let atlauncher_path = if cfg!(target_os = "macos") {
-        home.as_ref().map(|h| h.join("Library/Application Support/ATLauncher"))
+        home.as_ref()
+            .map(|h| h.join("Library/Application Support/ATLauncher"))
     } else if cfg!(target_os = "windows") {
         app_data.as_ref().map(|a| a.join("ATLauncher"))
     } else {
@@ -238,7 +258,11 @@ pub fn detect_all_launchers() -> Vec<LauncherDescriptor> {
     };
     if let Some(p) = atlauncher_path {
         let detected = p.exists();
-        let instances = if detected { scan_instances_in_path(&p) } else { Vec::new() };
+        let instances = if detected {
+            scan_instances_in_path(&p)
+        } else {
+            Vec::new()
+        };
         launchers.push(LauncherDescriptor {
             id: "atlauncher".to_string(),
             name: "ATLauncher".to_string(),
@@ -250,7 +274,8 @@ pub fn detect_all_launchers() -> Vec<LauncherDescriptor> {
 
     // 6. MultiMC
     let multimc_path = if cfg!(target_os = "macos") {
-        home.as_ref().map(|h| h.join("Library/Application Support/MultiMC"))
+        home.as_ref()
+            .map(|h| h.join("Library/Application Support/MultiMC"))
     } else if cfg!(target_os = "windows") {
         app_data.as_ref().map(|a| a.join("MultiMC"))
     } else {
@@ -258,7 +283,11 @@ pub fn detect_all_launchers() -> Vec<LauncherDescriptor> {
     };
     if let Some(p) = multimc_path {
         let detected = p.exists();
-        let instances = if detected { scan_instances_in_path(&p) } else { Vec::new() };
+        let instances = if detected {
+            scan_instances_in_path(&p)
+        } else {
+            Vec::new()
+        };
         launchers.push(LauncherDescriptor {
             id: "multimc".to_string(),
             name: "MultiMC".to_string(),
@@ -284,12 +313,12 @@ pub fn scan_instances_in_path(root: &Path) -> Vec<String> {
     for dir in &candidates {
         if let Ok(entries) = std::fs::read_dir(dir) {
             for entry in entries.flatten() {
-                if let Ok(ft) = entry.file_type() {
-                    if ft.is_dir() {
-                        let name = entry.file_name().to_string_lossy().to_string();
-                        if !name.starts_with('.') && !instances.contains(&name) {
-                            instances.push(name);
-                        }
+                if let Ok(ft) = entry.file_type()
+                    && ft.is_dir()
+                {
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    if !name.starts_with('.') && !instances.contains(&name) {
+                        instances.push(name);
                     }
                 }
             }
@@ -339,13 +368,21 @@ pub fn download_native_restic_engine() -> Result<PathBuf, String> {
     let bin_dir = base_dir.join("bin");
     std::fs::create_dir_all(&bin_dir).map_err(|e| format!("Failed to create bin dir: {}", e))?;
 
-    let target_bin = if cfg!(windows) { "restic.exe" } else { "restic" };
+    let target_bin = if cfg!(windows) {
+        "restic.exe"
+    } else {
+        "restic"
+    };
     let dest_path = bin_dir.join(target_bin);
 
     let version = "0.19.1";
     #[cfg(target_os = "macos")]
     {
-        let arch = if cfg!(target_arch = "aarch64") { "arm64" } else { "amd64" };
+        let arch = if cfg!(target_arch = "aarch64") {
+            "arm64"
+        } else {
+            "amd64"
+        };
         let url = format!(
             "https://github.com/restic/restic/releases/download/v{}/restic_{}_darwin_{}.bz2",
             version, version, arch
@@ -361,13 +398,20 @@ pub fn download_native_restic_engine() -> Result<PathBuf, String> {
             .output()
             .map_err(|e| format!("Download command failed: {}", e))?;
         if !out.status.success() || !dest_path.is_file() {
-            return Err(format!("Failed to download and extract restic: {}", String::from_utf8_lossy(&out.stderr)));
+            return Err(format!(
+                "Failed to download and extract restic: {}",
+                String::from_utf8_lossy(&out.stderr)
+            ));
         }
     }
 
     #[cfg(target_os = "linux")]
     {
-        let arch = if cfg!(target_arch = "aarch64") { "arm64" } else { "amd64" };
+        let arch = if cfg!(target_arch = "aarch64") {
+            "arm64"
+        } else {
+            "amd64"
+        };
         let url = format!(
             "https://github.com/restic/restic/releases/download/v{}/restic_{}_linux_{}.bz2",
             version, version, arch
@@ -383,7 +427,10 @@ pub fn download_native_restic_engine() -> Result<PathBuf, String> {
             .output()
             .map_err(|e| format!("Download command failed: {}", e))?;
         if !out.status.success() || !dest_path.is_file() {
-            return Err(format!("Failed to download and extract restic: {}", String::from_utf8_lossy(&out.stderr)));
+            return Err(format!(
+                "Failed to download and extract restic: {}",
+                String::from_utf8_lossy(&out.stderr)
+            ));
         }
     }
 
@@ -408,7 +455,10 @@ pub fn download_native_restic_engine() -> Result<PathBuf, String> {
             .output()
             .map_err(|e| format!("Download command failed: {}", e))?;
         if !out.status.success() || !dest_path.is_file() {
-            return Err(format!("Failed to download restic on Windows: {}", String::from_utf8_lossy(&out.stderr)));
+            return Err(format!(
+                "Failed to download restic on Windows: {}",
+                String::from_utf8_lossy(&out.stderr)
+            ));
         }
     }
 

@@ -1,5 +1,5 @@
-use std::process::Command;
 use serde::{Deserialize, Serialize};
+use std::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunningMinecraftProcess {
@@ -189,12 +189,12 @@ pub fn detect_minecraft_processes() -> ProcessCheckResult {
 
                 // First token is PID, rest is full args
                 let mut parts = trimmed.split_whitespace();
-                if let Some(pid_str) = parts.next() {
-                    if let Ok(pid) = pid_str.parse::<u32>() {
-                        let args_str = &trimmed[pid_str.len()..].trim();
-                        if let Some(proc_info) = classify_process(pid, args_str) {
-                            detected.push(proc_info);
-                        }
+                if let Some(pid_str) = parts.next()
+                    && let Ok(pid) = pid_str.parse::<u32>()
+                {
+                    let args_str = &trimmed[pid_str.len()..].trim();
+                    if let Some(proc_info) = classify_process(pid, args_str) {
+                        detected.push(proc_info);
                     }
                 }
             }

@@ -1,0 +1,379 @@
+name: Release Builds & USB Distribution
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      draft:
+        description: 'Create draft release'
+        required: true
+        type: boolean
+        default: true
+
+# Restrict default permissions to read-only
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Validate Tag and Version Consistency Across Manifests
+  # ---------------------------------------------------------------------------
+  validate-version:
+    name: Validate Manifest Consistency
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is_tag: ${{ steps.version.outputs.is_tag }}
+      release_tag: ${{ steps.version.outputs.release_tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify Version Consistency
+        id: version
+        run: |
+          NPM_VERSION="$(node -p "require('./package.json').version")"
+          TAURI_VERSION="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          CARGO_VERSION="$(grep -m 1 '^version = ' src-tauri/Cargo.toml | cut -d '"' -f 2)"
+
+          echo "package.json version:    $NPM_VERSION"
+          echo "tauri.conf.json version: $TAURI_VERSION"
+          echo "Cargo.toml version:      $CARGO_VERSION"
+
+          if [ "$NPM_VERSION" != "$TAURI_VERSION" ] || [ "$NPM_VERSION" != "$CARGO_VERSION" ]; then
+            echo "::error::Version mismatch detected! package.json ($NPM_VERSION), tauri.conf.json ($TAURI_VERSION), and Cargo.toml ($CARGO_VERSION) must be identical."
+            exit 1
+          fi
+
+          REF="${{ github.ref }}"
+          if [[ "$REF" == refs/tags/* ]]; then
+            TAG_NAME="${REF#refs/tags/}"
+            EXPECTED_TAG="v${NPM_VERSION}"
+            if [ "$TAG_NAME" != "$EXPECTED_TAG" ] && [ "$TAG_NAME" != "$NPM_VERSION" ]; then
+              echo "::error::Pushed tag '$TAG_NAME' does not match authoritative package version '$EXPECTED_TAG'!"
+              exit 1
+            fi
+            echo "is_tag=true" >> "$GITHUB_OUTPUT"
+            echo "release_tag=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_tag=false" >> "$GITHUB_OUTPUT"
+            echo "release_tag=v${NPM_VERSION}-draft-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "version=$NPM_VERSION" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # 2. Build Windows x86_64 Executable
+  # ---------------------------------------------------------------------------
+  build-windows:
+    name: Build Windows (x86_64)
+    needs: [validate-version]
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (Node 22 LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Setup Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build frontend bundle
+        run: npm run build
+
+      - name: Compile Windows release binary
+        run: cargo build --release --manifest-path src-tauri/Cargo.toml
+
+      - name: Stage Windows executable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts\windows-x64
+          if (Test-Path "src-tauri\target\release\MineVault.exe") {
+            Copy-Item "src-tauri\target\release\MineVault.exe" -Destination "artifacts\windows-x64\MineVault.exe"
+          } elseif (Test-Path "src-tauri\target\release\resticdashboard.exe") {
+            Copy-Item "src-tauri\target\release\resticdashboard.exe" -Destination "artifacts\windows-x64\MineVault.exe"
+          } else {
+            throw "Windows executable not found in src-tauri\target\release\"
+          }
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: artifacts/windows-x64
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # 3. Build macOS Apple Silicon (ARM64) Bundle
+  # ---------------------------------------------------------------------------
+  build-macos-arm64:
+    name: Build macOS (Apple Silicon arm64)
+    needs: [validate-version]
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (Node 22 LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Setup Rust toolchain (stable aarch64)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Cargo dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build frontend bundle
+        run: npm run build
+
+      - name: Build macOS Apple Silicon bundle
+        run: npx tauri build --target aarch64-apple-darwin --bundles app,dmg
+
+      - name: Stage macOS ARM64 artifacts
+        run: |
+          mkdir -p artifacts/macos-arm64
+          # Find and copy DMG if produced
+          find src-tauri/target/aarch64-apple-darwin/release/bundle/dmg -name "*.dmg" -exec cp {} artifacts/macos-arm64/MineVault.dmg \; 2>/dev/null || true
+          # Preserve .app bundle in tar.gz
+          if [ -d "src-tauri/target/aarch64-apple-darwin/release/bundle/macos/MineVault.app" ]; then
+            tar -czf artifacts/macos-arm64/MineVault.app.tar.gz -C "src-tauri/target/aarch64-apple-darwin/release/bundle/macos" "MineVault.app"
+          fi
+
+      - name: Upload macOS ARM64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64
+          path: artifacts/macos-arm64
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # 4. Build macOS Intel (x86_64) Bundle
+  # ---------------------------------------------------------------------------
+  build-macos-x64:
+    name: Build macOS (Intel x86_64)
+    needs: [validate-version]
+    runs-on: macos-13
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js (Node 22 LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Setup Rust toolchain (stable x86_64)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
+
+      - name: Cache Cargo dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build frontend bundle
+        run: npm run build
+
+      - name: Build macOS Intel bundle
+        run: npx tauri build --target x86_64-apple-darwin --bundles app,dmg
+
+      - name: Stage macOS Intel artifacts
+        run: |
+          mkdir -p artifacts/macos-x64
+          find src-tauri/target/x86_64-apple-darwin/release/bundle/dmg -name "*.dmg" -exec cp {} artifacts/macos-x64/MineVault.dmg \; 2>/dev/null || true
+          if [ -d "src-tauri/target/x86_64-apple-darwin/release/bundle/macos/MineVault.app" ]; then
+            tar -czf artifacts/macos-x64/MineVault.app.tar.gz -C "src-tauri/target/x86_64-apple-darwin/release/bundle/macos" "MineVault.app"
+          fi
+
+      - name: Upload macOS Intel artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-x64
+          path: artifacts/macos-x64
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # 5. Build Linux x86_64 AppImage
+  # ---------------------------------------------------------------------------
+  build-linux-x64:
+    name: Build Linux (x86_64 AppImage)
+    needs: [validate-version]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            squashfs-tools
+
+      - name: Setup Node.js (Node 22 LTS)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Setup Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build frontend bundle
+        run: npm run build
+
+      - name: Build Linux AppImage
+        run: npx tauri build --bundles appimage
+
+      - name: Stage Linux AppImage
+        run: |
+          mkdir -p artifacts/linux-x64
+          find src-tauri/target/release/bundle/appimage -name "*.AppImage" -exec cp {} artifacts/linux-x64/MineVault.AppImage \;
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x64
+          path: artifacts/linux-x64
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # 6. Aggregate Outputs, Assemble USB Kit, Verify, and Create Draft Release
+  # ---------------------------------------------------------------------------
+  package-and-release:
+    name: Package USB Kit & Publish Draft Release
+    needs:
+      - validate-version
+      - build-windows
+      - build-macos-arm64
+      - build-macos-x64
+      - build-linux-x64
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Granted ONLY to this packaging and release job
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-x64
+          path: build-artifacts/windows-x64
+
+      - name: Download macOS ARM64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-arm64
+          path: build-artifacts/macos-arm64
+
+      - name: Download macOS Intel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-x64
+          path: build-artifacts/macos-x64
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-x64
+          path: build-artifacts/linux-x64
+
+      - name: Download and verify official restic sidecars
+        run: |
+          chmod +x scripts/download-restic.sh
+          ./scripts/download-restic.sh build-artifacts/restic
+
+      - name: Assemble MineVault-USB and platform archives
+        env:
+          MINEVAULT_VERSION: ${{ needs.validate-version.outputs.version }}
+        run: |
+          chmod +x scripts/package-usb.sh
+          ./scripts/package-usb.sh build-artifacts dist-release
+
+      - name: Rigorous Package Verification
+        run: |
+          chmod +x scripts/verify-package.sh
+          ./scripts/verify-package.sh dist-release/MineVault-USB
+
+      - name: Create Draft GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ needs.validate-version.outputs.release_tag }}
+          APP_VERSION: ${{ needs.validate-version.outputs.version }}
+        run: |
+          echo "Publishing draft release for tag: $TAG_NAME"
+
+          gh release create "$TAG_NAME" \
+            dist-release/archives/* \
+            --title "MineVault v${APP_VERSION} (Portable USB Release)" \
+            --draft \
+            --notes-file - << 'EOF'
+          ## MineVault: Portable Minecraft Disaster Recovery & B2 Backup Manager
+
+          Carried on a USB flash drive, MineVault runs directly on Windows, macOS, and Linux without installation, Homebrew, or external package managers.
+
+          ### 📦 Downloadable Assets:
+          - **`MineVault-USB-v*.zip`**: Combined multi-platform USB distribution kit ready to extract directly onto an exFAT USB flash drive.
+          - **`MineVault-v*-windows-x64.zip`**: Standalone Windows package with bundled restic engine and launcher.
+          - **`MineVault-v*-macos-arm64.dmg`**: Native disk image for Apple Silicon Macs (M1/M2/M3/M4).
+          - **`MineVault-v*-macos-x64.dmg`**: Native disk image for 64-bit Intel Macs.
+          - **`MineVault-v*-linux-x64.AppImage`**: Self-contained Linux AppImage with noexec bypass staging launcher.
+          - **`SHA256SUMS`**: Cryptographic checksum verification list.
+
+          ### 🚀 Quick Start:
+          - Extract `MineVault-USB-v*.zip` onto an exFAT-formatted USB drive.
+          - Open `START-HERE.txt` or double-click the launcher for your operating system.
+          - Refer to `USB-SETUP.md` for formatting and technical details.
+          EOF

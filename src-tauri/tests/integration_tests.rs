@@ -1,10 +1,12 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use tempfile::TempDir;
 
-use resticdashboard_lib::models::{Profile, RepoConfig, RepoType, ResticSnapshot, ResticStats, ScheduleSpec, SessionCredentials};
+use resticdashboard_lib::models::{
+    Profile, RepoConfig, RepoType, ResticSnapshot, ResticStats, ScheduleSpec, SessionCredentials,
+};
 use resticdashboard_lib::restic_cli::ResticEngine;
 use resticdashboard_lib::scheduler::linux::LinuxSystemdAdapter;
 use resticdashboard_lib::scheduler::macos::MacOsLaunchdAdapter;
@@ -17,8 +19,8 @@ fn test_restic_json_parsing_snapshots_and_stats() {
             "time": "2026-11-09T17:03:39.0503-06:00",
             "tree": "b23ba564acb268432c0d218e8e8e895c45fe7274c01ba155cf73c7d6407aa069",
             "paths": ["/tmp/restic-test-source with spaces/ünicøde"],
-            "hostname": "macbook-declan",
-            "username": "declan",
+            "hostname": "test-host",
+            "username": "testuser",
             "uid": 502,
             "gid": 20,
             "program_version": "restic 0.19.1",
@@ -37,12 +39,19 @@ fn test_restic_json_parsing_snapshots_and_stats() {
         }
     ]"#;
 
-    let snapshots: Vec<ResticSnapshot> = serde_json::from_str(snapshot_json).expect("Failed to parse snapshots JSON");
+    let snapshots: Vec<ResticSnapshot> =
+        serde_json::from_str(snapshot_json).expect("Failed to parse snapshots JSON");
     assert_eq!(snapshots.len(), 1);
     assert_eq!(snapshots[0].short_id, "c1190655");
-    assert_eq!(snapshots[0].paths[0], "/tmp/restic-test-source with spaces/ünicøde");
+    assert_eq!(
+        snapshots[0].paths[0],
+        "/tmp/restic-test-source with spaces/ünicøde"
+    );
     assert_eq!(snapshots[0].summary.as_ref().unwrap().files_new, Some(2));
-    assert_eq!(snapshots[0].summary.as_ref().unwrap().data_added, Some(1984));
+    assert_eq!(
+        snapshots[0].summary.as_ref().unwrap().data_added,
+        Some(1984)
+    );
 
     let stats_raw_json = r#"{
         "total_size": 1303,
@@ -52,7 +61,8 @@ fn test_restic_json_parsing_snapshots_and_stats() {
         "snapshots_count": 1
     }"#;
 
-    let stats: ResticStats = serde_json::from_str(stats_raw_json).expect("Failed to parse raw-data stats JSON");
+    let stats: ResticStats =
+        serde_json::from_str(stats_raw_json).expect("Failed to parse raw-data stats JSON");
     assert_eq!(stats.total_size, 1303);
     assert_eq!(stats.snapshots_count, 1);
     assert_eq!(stats.total_blob_count, Some(6));
@@ -62,7 +72,8 @@ fn test_restic_json_parsing_snapshots_and_stats() {
         "total_file_count": 5,
         "snapshots_count": 1
     }"#;
-    let restore_stats: ResticStats = serde_json::from_str(stats_restore_json).expect("Failed to parse restore stats");
+    let restore_stats: ResticStats =
+        serde_json::from_str(stats_restore_json).expect("Failed to parse restore stats");
     assert_eq!(restore_stats.total_size, 25);
     assert_eq!(restore_stats.total_file_count, Some(5));
 }
@@ -80,7 +91,8 @@ fn test_missing_or_older_restic_fields_compatibility() {
         }
     ]"#;
 
-    let parsed: Vec<ResticSnapshot> = serde_json::from_str(older_snapshot).expect("Should handle missing optional fields");
+    let parsed: Vec<ResticSnapshot> =
+        serde_json::from_str(older_snapshot).expect("Should handle missing optional fields");
     assert_eq!(parsed[0].short_id, "12345678");
     assert!(parsed[0].summary.is_none());
     assert!(parsed[0].tags.is_none());
@@ -112,8 +124,10 @@ fn test_path_traversal_protection() {
 
 #[test]
 fn test_macos_launchd_generation_uses_persistent_paths() {
-    let runner_exe = PathBuf::from("/Users/declan/Library/Application Support/resticdashboard/bin/resticdashboard-runner");
-    let base_dir = PathBuf::from("/Users/declan/Library/Application Support/resticdashboard");
+    let runner_exe = PathBuf::from(
+        "/Users/testuser/Library/Application Support/resticdashboard/bin/resticdashboard-runner",
+    );
+    let base_dir = PathBuf::from("/Users/testuser/Library/Application Support/resticdashboard");
     let schedule = ScheduleSpec {
         frequency: "daily".to_string(),
         hour: 3,
@@ -122,10 +136,13 @@ fn test_macos_launchd_generation_uses_persistent_paths() {
         active: true,
     };
 
-    let xml = MacOsLaunchdAdapter::generate_plist_xml("test-profile", &runner_exe, &base_dir, &schedule);
+    let xml =
+        MacOsLaunchdAdapter::generate_plist_xml("test-profile", &runner_exe, &base_dir, &schedule);
 
     // Verify it uses the persistent runner path and NOT a USB path
-    assert!(xml.contains("/Library/Application Support/resticdashboard/bin/resticdashboard-runner"));
+    assert!(
+        xml.contains("/Library/Application Support/resticdashboard/bin/resticdashboard-runner")
+    );
     assert!(xml.contains("<string>runner</string>"));
     assert!(xml.contains("<string>--profile-id</string>"));
     assert!(xml.contains("<string>test-profile</string>"));
@@ -136,7 +153,8 @@ fn test_macos_launchd_generation_uses_persistent_paths() {
 
 #[test]
 fn test_linux_systemd_generation_uses_persistent_paths() {
-    let runner_exe = PathBuf::from("/home/user/.local/share/resticdashboard/bin/resticdashboard-runner");
+    let runner_exe =
+        PathBuf::from("/home/user/.local/share/resticdashboard/bin/resticdashboard-runner");
     let base_dir = PathBuf::from("/home/user/.local/share/resticdashboard");
     let schedule = ScheduleSpec {
         frequency: "weekly".to_string(),
@@ -170,7 +188,10 @@ fn test_subprocess_timeout_prevention() {
     assert!(res.is_err(), "Sleep 10 with 400ms timeout must return Err");
     let err_str = res.unwrap_err();
     assert!(err_str.contains("timed out"));
-    assert!(start.elapsed() < std::time::Duration::from_millis(1500), "Must terminate quickly around timeout");
+    assert!(
+        start.elapsed() < std::time::Duration::from_millis(1500),
+        "Must terminate quickly around timeout"
+    );
 }
 
 #[test]
@@ -192,9 +213,18 @@ fn test_real_local_repository_integration_slice() {
     // 1. Initialize repository with --insecure-no-password
     let engine = ResticEngine::new();
     let mut init_cmd = std::process::Command::new(engine.binary_path());
-    init_cmd.args(["init", "-r", repo_dir.to_str().unwrap(), "--insecure-no-password"]);
+    init_cmd.args([
+        "init",
+        "-r",
+        repo_dir.to_str().unwrap(),
+        "--insecure-no-password",
+    ]);
     let init_out = init_cmd.output().expect("Failed to run restic init");
-    assert!(init_out.status.success(), "Init should succeed: {}", String::from_utf8_lossy(&init_out.stderr));
+    assert!(
+        init_out.status.success(),
+        "Init should succeed: {}",
+        String::from_utf8_lossy(&init_out.stderr)
+    );
 
     let repo_config = RepoConfig {
         id: "local-temp-test-repo".to_string(),
@@ -213,7 +243,10 @@ fn test_real_local_repository_integration_slice() {
 
     // 2. Safe connection test
     let conn_res = engine.test_connection(&repo_config, &creds);
-    assert!(conn_res.is_ok(), "Test connection on fresh repo should succeed");
+    assert!(
+        conn_res.is_ok(),
+        "Test connection on fresh repo should succeed"
+    );
 
     // 3. Backup operation
     let profile = Profile {
@@ -245,22 +278,32 @@ fn test_real_local_repository_integration_slice() {
     let snapshot_id = run.snapshot_id.expect("Snapshot ID must be present");
 
     // 4. List snapshots
-    let snapshots = engine.list_snapshots(&repo_config, &creds, None, None).expect("Should list snapshots");
+    let snapshots = engine
+        .list_snapshots(&repo_config, &creds, None, None)
+        .expect("Should list snapshots");
     assert_eq!(snapshots.len(), 1);
     assert_eq!(snapshots[0].short_id, &snapshot_id[..8]);
 
     // 5. Query stats (raw-data vs restore-size)
-    let raw_stats = engine.get_stats(&repo_config, &creds, "raw-data", None).expect("Stats raw-data");
-    let restore_stats = engine.get_stats(&repo_config, &creds, "restore-size", None).expect("Stats restore-size");
+    let raw_stats = engine
+        .get_stats(&repo_config, &creds, "raw-data", None)
+        .expect("Stats raw-data");
+    let restore_stats = engine
+        .get_stats(&repo_config, &creds, "restore-size", None)
+        .expect("Stats restore-size");
     assert!(raw_stats.total_size > 0);
     assert!(restore_stats.total_size > 0);
 
     // 6. List nodes in snapshot (recursive=false tests single level, then recursive=true tests deep traversal)
-    let nodes = engine.list_nodes(&repo_config, &creds, &snapshot_id, None, false).expect("List nodes");
+    let nodes = engine
+        .list_nodes(&repo_config, &creds, &snapshot_id, None, false)
+        .expect("List nodes");
     assert!(nodes.iter().any(|n| n.name == "minecraft_options.txt"));
     assert!(nodes.iter().any(|n| n.name == "world_meta.json"));
 
-    let recursive_nodes = engine.list_nodes(&repo_config, &creds, &snapshot_id, None, true).expect("List nodes recursive");
+    let recursive_nodes = engine
+        .list_nodes(&repo_config, &creds, &snapshot_id, None, true)
+        .expect("List nodes recursive");
     assert!(recursive_nodes.len() >= 2);
 
     // 7. Restore snapshot to new destination
@@ -312,9 +355,18 @@ fn test_retention_policy_and_pinned_tag_protection() {
 
     // Init repo with --insecure-no-password
     let mut init_cmd = std::process::Command::new(engine.binary_path());
-    init_cmd.args(["init", "-r", repo_dir.to_str().unwrap(), "--insecure-no-password"]);
+    init_cmd.args([
+        "init",
+        "-r",
+        repo_dir.to_str().unwrap(),
+        "--insecure-no-password",
+    ]);
     let init_out = init_cmd.output().expect("Failed to run restic init");
-    assert!(init_out.status.success(), "Init should succeed: {}", String::from_utf8_lossy(&init_out.stderr));
+    assert!(
+        init_out.status.success(),
+        "Init should succeed: {}",
+        String::from_utf8_lossy(&init_out.stderr)
+    );
 
     // 1. Snapshot 1: Pinned / Important distinction backup
     let profile_pinned = Profile {
@@ -336,7 +388,15 @@ fn test_retention_policy_and_pinned_tag_protection() {
         is_pinned: Some(true),
     };
     let cancel = Arc::new(AtomicBool::new(false));
-    let r1 = engine.run_backup(&repo_config, &profile_pinned, &creds, cancel.clone(), |_| {}).expect("Backup 1");
+    let r1 = engine
+        .run_backup(
+            &repo_config,
+            &profile_pinned,
+            &creds,
+            cancel.clone(),
+            |_| {},
+        )
+        .expect("Backup 1");
     let snap1_id = r1.snapshot_id.expect("Snap 1 ID");
 
     // Small delay to ensure separate timestamps if needed
@@ -348,7 +408,15 @@ fn test_retention_policy_and_pinned_tag_protection() {
     profile_regular.tags = vec!["regular-1".to_string()];
     profile_regular.distinction_label = None;
     profile_regular.is_pinned = Some(false);
-    let r2 = engine.run_backup(&repo_config, &profile_regular, &creds, cancel.clone(), |_| {}).expect("Backup 2");
+    let r2 = engine
+        .run_backup(
+            &repo_config,
+            &profile_regular,
+            &creds,
+            cancel.clone(),
+            |_| {},
+        )
+        .expect("Backup 2");
     assert!(r2.snapshot_id.is_some());
 
     fs::write(src_dir.join("test_save.dat"), "world data v3").unwrap();
@@ -356,36 +424,97 @@ fn test_retention_policy_and_pinned_tag_protection() {
     // 3. Snapshot 3: Regular backup
     profile_regular.id = "p3".to_string();
     profile_regular.tags = vec!["regular-2".to_string()];
-    let r3 = engine.run_backup(&repo_config, &profile_regular, &creds, cancel.clone(), |_| {}).expect("Backup 3");
+    let r3 = engine
+        .run_backup(
+            &repo_config,
+            &profile_regular,
+            &creds,
+            cancel.clone(),
+            |_| {},
+        )
+        .expect("Backup 3");
     assert!(r3.snapshot_id.is_some());
 
     // 4. Verify 3 snapshots exist initially
-    let all_snaps = engine.list_snapshots(&repo_config, &creds, None, None).expect("List 3 snapshots");
+    let all_snaps = engine
+        .list_snapshots(&repo_config, &creds, None, None)
+        .expect("List 3 snapshots");
     assert_eq!(all_snaps.len(), 3);
 
     // 5. Execute retention policy: Keep last 1, but preserve pinned/important
     let forget_res = engine.run_forget_policy(&repo_config, &creds, 1, &["important", "pinned"]);
-    assert!(forget_res.is_ok(), "Forget policy should execute successfully");
+    assert!(
+        forget_res.is_ok(),
+        "Forget policy should execute successfully"
+    );
 
     // 6. Verify: Pinned snapshot (snap1) MUST still exist despite being the oldest!
-    let remaining_snaps = engine.list_snapshots(&repo_config, &creds, None, None).expect("List remaining");
+    let remaining_snaps = engine
+        .list_snapshots(&repo_config, &creds, None, None)
+        .expect("List remaining");
     assert!(
         remaining_snaps.iter().any(|s| s.id == snap1_id),
         "Pinned snapshot must NOT be deleted by retention policy"
     );
-    assert_eq!(remaining_snaps.len(), 2, "Should keep 1 pinned + 1 latest regular snapshot");
+    assert_eq!(
+        remaining_snaps.len(),
+        2,
+        "Should keep 1 pinned + 1 latest regular snapshot"
+    );
 
     // 7. Verify tag modification
     let tag_res = engine.tag_snapshot(&repo_config, &creds, &snap1_id, &["custom-tag"], &[]);
     assert!(tag_res.is_ok(), "Tag operation should succeed");
 
     // 8. Test deleting a single snapshot manually one at a time
-    let current_snaps = engine.list_snapshots(&repo_config, &creds, None, None).expect("List current");
+    let current_snaps = engine
+        .list_snapshots(&repo_config, &creds, None, None)
+        .expect("List current");
     assert_eq!(current_snaps.len(), 2);
     let snap_to_delete = current_snaps[0].id.clone();
     let del_res = engine.delete_single_snapshot(&repo_config, &creds, &snap_to_delete, false);
-    assert!(del_res.is_ok(), "Delete single snapshot should succeed: {:?}", del_res);
-    let after_del = engine.list_snapshots(&repo_config, &creds, None, None).expect("List after delete");
-    assert_eq!(after_del.len(), 1, "Only 1 snapshot should remain after manual single deletion");
-    assert!(!after_del.iter().any(|s| s.id == snap_to_delete), "Deleted snapshot must not be in list");
+    assert!(
+        del_res.is_ok(),
+        "Delete single snapshot should succeed: {:?}",
+        del_res
+    );
+    let after_del = engine
+        .list_snapshots(&repo_config, &creds, None, None)
+        .expect("List after delete");
+    assert_eq!(
+        after_del.len(),
+        1,
+        "Only 1 snapshot should remain after manual single deletion"
+    );
+    assert!(
+        !after_del.iter().any(|s| s.id == snap_to_delete),
+        "Deleted snapshot must not be in list"
+    );
+}
+
+#[test]
+fn test_version_consistency_across_manifests() {
+    let tauri_conf_str = include_str!("../tauri.conf.json");
+    let tauri_conf: serde_json::Value =
+        serde_json::from_str(tauri_conf_str).expect("Valid tauri.conf.json");
+    let tauri_version = tauri_conf["version"]
+        .as_str()
+        .expect("version in tauri.conf.json");
+
+    let package_json_str = include_str!("../../package.json");
+    let package_json: serde_json::Value =
+        serde_json::from_str(package_json_str).expect("Valid package.json");
+    let npm_version = package_json["version"]
+        .as_str()
+        .expect("version in package.json");
+
+    let cargo_toml_str = include_str!("../Cargo.toml");
+    assert!(
+        cargo_toml_str.contains(&format!("version = \"{}\"", tauri_version)),
+        "Cargo.toml must match tauri version"
+    );
+    assert_eq!(
+        tauri_version, npm_version,
+        "tauri.conf.json and package.json versions must match"
+    );
 }

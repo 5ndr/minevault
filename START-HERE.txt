@@ -1,0 +1,72 @@
+================================================================================
+  MineVault: Portable Minecraft Disaster Recovery & B2 Backup System
+================================================================================
+
+Welcome to MineVault! This USB drive contains everything you need to inspect,
+backup, and restore Minecraft worlds and launchers across Windows, macOS, and Linux.
+
+No installation of Node, Rust, Python, Homebrew, or developer tools is required.
+
+--------------------------------------------------------------------------------
+1. QUICK START BY OPERATING SYSTEM
+--------------------------------------------------------------------------------
+
+▶ WINDOWS (Windows 10 / 11 64-bit):
+  1. Double-click "Launch-Windows.bat" in this root folder, OR
+     navigate into the "Windows-x64" folder and run "MineVault.exe".
+  2. If Windows SmartScreen displays "Windows protected your PC":
+     Click "More info" -> "Run anyway".
+  * Note: Requires Microsoft Edge WebView2 (pre-installed on Windows 10/11).
+
+▶ macOS (Apple Silicon M1/M2/M3/M4 & Intel):
+  1. Double-click "Launch-macOS.command" in this root folder.
+     It automatically detects your Mac's CPU architecture and opens the app.
+  2. Alternatively:
+     - For Apple Silicon: open "macOS-arm64/MineVault.dmg".
+     - For Intel Macs:    open "macOS-x64/MineVault.dmg".
+  3. Gatekeeper Note: If macOS displays "MineVault cannot be opened because the
+     developer cannot be verified":
+     Right-click (or Control-click) "MineVault.app" inside the DMG -> click "Open"
+     -> click "Open" in the dialog box. You only need to do this once.
+     * Do NOT disable Gatekeeper globally.
+
+▶ LINUX (Ubuntu 22.04+, Debian 12+, Fedora, Arch):
+  1. Open a terminal on this USB drive and run:
+     ./Launch-Linux.sh
+  2. If your desktop mounted the USB with "noexec" (direct execution blocked),
+     "Launch-Linux.sh" automatically stages the AppImage to your local cache
+     (~/.cache/minevault/) and runs it cleanly without needing root/sudo.
+
+--------------------------------------------------------------------------------
+2. AUTOMATIC BACKGROUND SCHEDULES & UNPLUGGING THIS USB DRIVE
+--------------------------------------------------------------------------------
+
+MineVault can configure persistent, unattended background backups:
+- Launching MineVault does NOT automatically install background tasks.
+- If you open the "Automatic Backup Wizard" and click "Install Schedule",
+  MineVault copies the lightweight headless runner and restic engine directly
+  into your host machine's persistent local directory:
+    * Windows: %LOCALAPPDATA%\resticdashboard\bin
+    * macOS:   ~/Library/Application Support/resticdashboard/bin
+    * Linux:   ~/.local/share/resticdashboard/bin
+  and registers a native scheduled task (Windows Task Scheduler, macOS launchd,
+  or Linux systemd --user).
+- Once installed, the scheduled backups run on time even when this USB drive
+  is completely unplugged!
+
+--------------------------------------------------------------------------------
+3. FILES & FOLDERS IN THIS KIT
+--------------------------------------------------------------------------------
+
+  START-HERE.txt        - This quickstart guide
+  USB-SETUP.md          - Complete formatting, exFAT, and safety instructions
+  SHA256SUMS            - Cryptographic verification checksums for all files
+  build-manifest.json   - Release metadata, git commit SHA, and dependencies
+  licenses/             - Open source licenses (MIT, BSD-2-Clause, Apache-2.0)
+  Windows-x64/          - Standalone executable, restic sidecar, and launcher
+  macOS-arm64/          - Apple Silicon DMG, archive, restic, and launcher
+  macOS-x64/            - Intel macOS DMG, archive, restic, and launcher
+  Linux-x64/            - Linux AppImage, restic sidecar, and noexec-safe launcher
+
+For formatting guidelines and technical architecture, read "USB-SETUP.md".
+Enjoy safe Minecrafting!

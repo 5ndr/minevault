@@ -1,11 +1,11 @@
-use std::fs;
-use std::path::PathBuf;
+use crate::system::get_persistent_app_dir;
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes256Gcm, Nonce};
 use pbkdf2::pbkdf2_hmac;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
-use crate::system::get_persistent_app_dir;
+use std::fs;
+use std::path::PathBuf;
 
 const VAULT_FILE_NAME: &str = "minevault_keys.enc";
 const PBKDF2_ROUNDS_PASSPHRASE: u32 = 100_000;
@@ -43,23 +43,23 @@ pub struct UsbVaultStatus {
 /// Locates the USB root directory or current executable directory for storing USB vault
 pub fn get_usb_vault_path() -> PathBuf {
     // 1. Check parent directories of current executable
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(parent) = exe.parent() {
-            let mut check_dir = parent.to_path_buf();
-            for _ in 0..4 {
-                let cand = check_dir.join(VAULT_FILE_NAME);
-                if cand.is_file() {
-                    return cand;
-                }
-                let usb_cand = check_dir.join("usb_dist").join(VAULT_FILE_NAME);
-                if usb_cand.is_file() {
-                    return usb_cand;
-                }
-                if let Some(p) = check_dir.parent() {
-                    check_dir = p.to_path_buf();
-                } else {
-                    break;
-                }
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(parent) = exe.parent()
+    {
+        let mut check_dir = parent.to_path_buf();
+        for _ in 0..4 {
+            let cand = check_dir.join(VAULT_FILE_NAME);
+            if cand.is_file() {
+                return cand;
+            }
+            let usb_cand = check_dir.join("usb_dist").join(VAULT_FILE_NAME);
+            if usb_cand.is_file() {
+                return usb_cand;
+            }
+            if let Some(p) = check_dir.parent() {
+                check_dir = p.to_path_buf();
+            } else {
+                break;
             }
         }
     }
@@ -143,8 +143,7 @@ pub fn save_usb_vault(
         .map_err(|e| format!("Cipher initialization error: {}", e))?;
     let nonce = Nonce::from_slice(&nonce_bytes);
 
-    let plaintext = serde_json::to_vec(data)
-        .map_err(|e| format!("Serialization error: {}", e))?;
+    let plaintext = serde_json::to_vec(data).map_err(|e| format!("Serialization error: {}", e))?;
 
     let ciphertext = cipher
         .encrypt(nonce, plaintext.as_ref())
@@ -163,8 +162,13 @@ pub fn save_usb_vault(
     let envelope_json = serde_json::to_string_pretty(&envelope)
         .map_err(|e| format!("Envelope formatting error: {}", e))?;
 
-    fs::write(&vault_path, envelope_json)
-        .map_err(|e| format!("Failed to write encrypted vault to '{}': {}", vault_path.display(), e))?;
+    fs::write(&vault_path, envelope_json).map_err(|e| {
+        format!(
+            "Failed to write encrypted vault to '{}': {}",
+            vault_path.display(),
+            e
+        )
+    })?;
 
     Ok(vault_path.to_string_lossy().to_string())
 }
@@ -173,19 +177,21 @@ pub fn save_usb_vault(
 pub fn load_usb_vault(passphrase: Option<&str>) -> Result<EncryptedVaultData, String> {
     let vault_path = get_usb_vault_path();
     if !vault_path.is_file() {
-        return Err(format!("USB vault file not found at '{}'", vault_path.display()));
+        return Err(format!(
+            "USB vault file not found at '{}'",
+            vault_path.display()
+        ));
     }
 
-    let content = fs::read_to_string(&vault_path)
-        .map_err(|e| format!("Failed to read vault file: {}", e))?;
+    let content =
+        fs::read_to_string(&vault_path).map_err(|e| format!("Failed to read vault file: {}", e))?;
 
     let envelope: VaultEnvelope = serde_json::from_str(&content)
         .map_err(|e| format!("Failed to parse vault envelope: {}", e))?;
 
-    let salt = hex::decode(&envelope.salt)
-        .map_err(|e| format!("Invalid salt encoding: {}", e))?;
-    let nonce_bytes = hex::decode(&envelope.nonce)
-        .map_err(|e| format!("Invalid nonce encoding: {}", e))?;
+    let salt = hex::decode(&envelope.salt).map_err(|e| format!("Invalid salt encoding: {}", e))?;
+    let nonce_bytes =
+        hex::decode(&envelope.nonce).map_err(|e| format!("Invalid nonce encoding: {}", e))?;
     let ciphertext = hex::decode(&envelope.ciphertext)
         .map_err(|e| format!("Invalid ciphertext encoding: {}", e))?;
 
@@ -194,9 +200,9 @@ pub fn load_usb_vault(passphrase: Option<&str>) -> Result<EncryptedVaultData, St
         .map_err(|e| format!("Cipher initialization error: {}", e))?;
     let nonce = Nonce::from_slice(&nonce_bytes);
 
-    let decrypted_bytes = cipher
-        .decrypt(nonce, ciphertext.as_ref())
-        .map_err(|_| "Failed to decrypt USB vault. Invalid passphrase or corrupted file.".to_string())?;
+    let decrypted_bytes = cipher.decrypt(nonce, ciphertext.as_ref()).map_err(|_| {
+        "Failed to decrypt USB vault. Invalid passphrase or corrupted file.".to_string()
+    })?;
 
     let data: EncryptedVaultData = serde_json::from_slice(&decrypted_bytes)
         .map_err(|e| format!("Failed to deserialize decrypted vault credentials: {}", e))?;
@@ -210,12 +216,11 @@ pub fn check_usb_vault_status() -> UsbVaultStatus {
     let exists = vault_path.is_file();
     let mut is_passphrase_protected = false;
 
-    if exists {
-        if let Ok(content) = fs::read_to_string(&vault_path) {
-            if let Ok(envelope) = serde_json::from_str::<VaultEnvelope>(&content) {
-                is_passphrase_protected = envelope.has_passphrase;
-            }
-        }
+    if exists
+        && let Ok(content) = fs::read_to_string(&vault_path)
+        && let Ok(envelope) = serde_json::from_str::<VaultEnvelope>(&content)
+    {
+        is_passphrase_protected = envelope.has_passphrase;
     }
 
     UsbVaultStatus {
@@ -241,7 +246,7 @@ mod hex {
     }
 
     pub fn decode(s: &str) -> Result<Vec<u8>, String> {
-        if s.len() % 2 != 0 {
+        if !s.len().is_multiple_of(2) {
             return Err("Invalid hex length".to_string());
         }
         (0..s.len())
@@ -278,7 +283,9 @@ mod tests {
         let key = derive_key(Some("SuperSecret123"), &salt);
         let cipher = Aes256Gcm::new_from_slice(&key).unwrap();
         let plaintext = serde_json::to_vec(&original).unwrap();
-        let ct = cipher.encrypt(Nonce::from_slice(&nonce), plaintext.as_ref()).unwrap();
+        let ct = cipher
+            .encrypt(Nonce::from_slice(&nonce), plaintext.as_ref())
+            .unwrap();
 
         let env = VaultEnvelope {
             version: 1,
@@ -294,11 +301,23 @@ mod tests {
         // Wrong passphrase must fail
         let wrong_key = derive_key(Some("WrongPass"), &salt);
         let wrong_cipher = Aes256Gcm::new_from_slice(&wrong_key).unwrap();
-        assert!(wrong_cipher.decrypt(Nonce::from_slice(&nonce), hex::decode(&env.ciphertext).unwrap().as_ref()).is_err());
+        assert!(
+            wrong_cipher
+                .decrypt(
+                    Nonce::from_slice(&nonce),
+                    hex::decode(&env.ciphertext).unwrap().as_ref()
+                )
+                .is_err()
+        );
 
         // Correct passphrase must succeed and match original
         let correct_cipher = Aes256Gcm::new_from_slice(&key).unwrap();
-        let dec = correct_cipher.decrypt(Nonce::from_slice(&nonce), hex::decode(&env.ciphertext).unwrap().as_ref()).unwrap();
+        let dec = correct_cipher
+            .decrypt(
+                Nonce::from_slice(&nonce),
+                hex::decode(&env.ciphertext).unwrap().as_ref(),
+            )
+            .unwrap();
         let loaded: EncryptedVaultData = serde_json::from_slice(&dec).unwrap();
         assert_eq!(loaded.b2_application_key, original.b2_application_key);
         assert_eq!(loaded.b2_key_id, original.b2_key_id);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import {
@@ -50,6 +50,17 @@ export function App() {
   // System and OS Environment
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const [localFreeSpace, setLocalFreeSpace] = useState<number | null>(null);
+
+  const defaultRestoreDir = useMemo(() => {
+    if (systemInfo?.platform === 'windows') {
+      return 'C:\\MineVault_Restores';
+    }
+    if (systemInfo?.persistent_app_dir) {
+      const parent = systemInfo.persistent_app_dir.replace(/[/\\][^/\\]+$/, '');
+      return `${parent}/Restored_Backups`;
+    }
+    return '~/Restored_Backups';
+  }, [systemInfo]);
 
   // Live User State (Never overwritten by Demo Mode)
   const [liveRepo, setLiveRepo] = useState<RepoConfig | null>(null);
@@ -117,9 +128,13 @@ export function App() {
         setSystemInfo(sys);
 
         // Check restore destination free space
-        const defaultRestoreDir = `/Users/declan/Restored_Backups`;
+        const initialRestoreDir = sys.platform === 'windows'
+          ? 'C:\\MineVault_Restores'
+          : sys.persistent_app_dir
+          ? `${sys.persistent_app_dir.replace(/[/\\][^/\\]+$/, '')}/Restored_Backups`
+          : '~/Restored_Backups';
         try {
-          const space: number = await invoke('get_free_disk_space_cmd', { targetDir: defaultRestoreDir });
+          const space: number = await invoke('get_free_disk_space_cmd', { targetDir: initialRestoreDir });
           setLocalFreeSpace(space);
         } catch (_) {}
 
@@ -282,9 +297,9 @@ export function App() {
           platform: 'macos',
           installed: true,
           enabled: true,
-          target_binary_path: '/Users/declan/Library/Application Support/resticdashboard/bin/resticdashboard-runner',
-          config_path: '/Users/declan/Library/Application Support/resticdashboard/configs/prism-demo-profile.json',
-          schedule_file_path: '~/Library/LaunchAgents/com.resticdashboard.prism-demo-profile.plist',
+          target_binary_path: '~/.minevault/bin/resticdashboard-runner',
+          config_path: '~/.minevault/configs/prism-demo-profile.json',
+          schedule_file_path: '~/Library/LaunchAgents/com.minevault.prism-demo-profile.plist',
           notes: 'Active launchd user agent with local persistent runner.',
           last_run: demo.runs[0],
         },
@@ -302,8 +317,8 @@ export function App() {
             code: 'PASSWORDLESS_INFO',
           },
         ],
-        current_machine_id: 'macbook-declan',
-        current_machine_name: 'MacBook Pro',
+        current_machine_id: 'demo-host',
+        current_machine_name: 'Demo System',
       });
     } catch (err) {
       console.error('Error loading demo data:', err);
@@ -746,7 +761,7 @@ export function App() {
               onRunIntegrityCheck={handleRunIntegrityCheck}
               onRecordRestoreTest={() => {
                 if (selectedSnapshot) {
-                  handleRecordRestoreTest(selectedSnapshot.id, '/Users/declan/Restored_Backups');
+                  handleRecordRestoreTest(selectedSnapshot.id, defaultRestoreDir);
                 } else {
                   alert('Select a snapshot to record a confirmed test.');
                 }
@@ -773,7 +788,7 @@ export function App() {
               onRefreshStorage={handleRefreshStorage}
               refreshing={refreshingStorage}
               localFreeSpace={localFreeSpace}
-              restoreTargetDir="/Users/declan/Restored_Backups"
+              restoreTargetDir={defaultRestoreDir}
               onOpenB2ManagementModal={() => setIsB2ModalOpen(true)}
             />
 
@@ -801,6 +816,7 @@ export function App() {
               onTogglePin={handleTogglePin}
               onRunForget={handleRunForget}
               onDeleteSnapshot={handleDeleteSnapshot}
+              defaultRestoreBaseDir={defaultRestoreDir}
             />
           </ErrorBoundary>
         )}

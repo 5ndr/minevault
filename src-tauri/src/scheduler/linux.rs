@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::models::{Profile, RepoConfig, RunResult, SchedulerStatus, SessionCredentials};
-use crate::scheduler::{setup_persistent_local_files, SchedulerAdapter};
+use crate::scheduler::{SchedulerAdapter, setup_persistent_local_files};
 use crate::system::get_persistent_app_dir;
 
 pub struct LinuxSystemdAdapter;
@@ -41,7 +41,10 @@ impl LinuxSystemdAdapter {
                     6 => "Sat",
                     _ => "Mon",
                 };
-                format!("{} *-*-* {:02}:{:02}:00", day_name, schedule.hour, schedule.minute)
+                format!(
+                    "{} *-*-* {:02}:{:02}:00",
+                    day_name, schedule.hour, schedule.minute
+                )
             }
             _ => {
                 // Default daily
@@ -86,6 +89,12 @@ WantedBy=timers.target
     }
 }
 
+impl Default for LinuxSystemdAdapter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SchedulerAdapter for LinuxSystemdAdapter {
     fn platform_name(&self) -> &'static str {
         "linux"
@@ -98,7 +107,10 @@ impl SchedulerAdapter for LinuxSystemdAdapter {
         creds: &SessionCredentials,
         restic_bin: &Path,
     ) -> Result<SchedulerStatus, String> {
-        let schedule = profile.schedule.as_ref().ok_or("No schedule configured on profile")?;
+        let schedule = profile
+            .schedule
+            .as_ref()
+            .ok_or("No schedule configured on profile")?;
         let base_dir = get_persistent_app_dir();
 
         // 1. Setup persistent files
@@ -107,8 +119,13 @@ impl SchedulerAdapter for LinuxSystemdAdapter {
 
         // 2. Write service & timer units
         let user_dir = Self::systemd_user_dir();
-        fs::create_dir_all(&user_dir)
-            .map_err(|e| format!("Failed to create systemd user dir {}: {}", user_dir.display(), e))?;
+        fs::create_dir_all(&user_dir).map_err(|e| {
+            format!(
+                "Failed to create systemd user dir {}: {}",
+                user_dir.display(),
+                e
+            )
+        })?;
 
         let service_file = user_dir.join(Self::service_name(&profile.id));
         let timer_file = user_dir.join(Self::timer_name(&profile.id));
@@ -170,7 +187,11 @@ impl SchedulerAdapter for LinuxSystemdAdapter {
 
         // Clean up persistent config & secrets (preserving backup repository data)
         let base_dir = get_persistent_app_dir();
-        let _ = fs::remove_file(base_dir.join("configs").join(format!("{}.json", profile_id)));
+        let _ = fs::remove_file(
+            base_dir
+                .join("configs")
+                .join(format!("{}.json", profile_id)),
+        );
         let _ = fs::remove_file(base_dir.join("secrets").join(format!("{}.env", profile_id)));
 
         Ok(())
@@ -199,17 +220,18 @@ impl SchedulerAdapter for LinuxSystemdAdapter {
         let installed = timer_file.is_file();
 
         let base_dir = get_persistent_app_dir();
-        let config_path = base_dir.join("configs").join(format!("{}.json", profile_id));
+        let config_path = base_dir
+            .join("configs")
+            .join(format!("{}.json", profile_id));
         let runner_path = base_dir.join("bin").join("resticdashboard-runner");
 
         let mut last_run = None;
         let status_file = base_dir.join("status").join(format!("{}.json", profile_id));
-        if status_file.is_file() {
-            if let Ok(content) = fs::read_to_string(&status_file) {
-                if let Ok(run) = serde_json::from_str::<RunResult>(&content) {
-                    last_run = Some(run);
-                }
-            }
+        if status_file.is_file()
+            && let Ok(content) = fs::read_to_string(&status_file)
+            && let Ok(run) = serde_json::from_str::<RunResult>(&content)
+        {
+            last_run = Some(run);
         }
 
         let notes = if installed {

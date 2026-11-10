@@ -1,15 +1,15 @@
 use std::fs;
 use std::path::Path;
 use std::process::Command;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Emitter, State};
 
 use crate::mock_adapter::MockResticAdapter;
 use crate::models::{
-    DashboardAlert, DashboardSummary, FolderSizeBreakdown, GrowthPoint,
-    IntegrityCheckResult, Profile, RepoConfig, RestoreOptions, RestoreTestRecord, ResticNode,
-    ResticSnapshot, RunResult, SchedulerStatus, SessionCredentials, StorageOverview,
+    DashboardAlert, DashboardSummary, FolderSizeBreakdown, GrowthPoint, IntegrityCheckResult,
+    Profile, RepoConfig, ResticNode, ResticSnapshot, RestoreOptions, RestoreTestRecord, RunResult,
+    SchedulerStatus, SessionCredentials, StorageOverview,
 };
 use crate::restic_cli::ResticEngine;
 use crate::scheduler::get_active_scheduler;
@@ -74,7 +74,10 @@ pub fn get_system_info() -> SystemInfo {
 }
 
 #[tauri::command]
-pub async fn test_repo_connection(repo: RepoConfig, creds: SessionCredentials) -> Result<String, String> {
+pub async fn test_repo_connection(
+    repo: RepoConfig,
+    creds: SessionCredentials,
+) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let engine = ResticEngine::new();
         engine.test_connection(&repo, &creds)
@@ -92,7 +95,12 @@ pub async fn list_snapshots(
 ) -> Result<Vec<ResticSnapshot>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let engine = ResticEngine::new();
-        engine.list_snapshots(&repo, &creds, host_filter.as_deref(), path_filter.as_deref())
+        engine.list_snapshots(
+            &repo,
+            &creds,
+            host_filter.as_deref(),
+            path_filter.as_deref(),
+        )
     })
     .await
     .map_err(|e| format!("Task execution error: {}", e))?
@@ -118,12 +126,11 @@ pub async fn get_storage_overview(
         let history_file = base_dir.join("storage_history.json");
         let mut history: Vec<GrowthPoint> = Vec::new();
 
-        if history_file.is_file() {
-            if let Ok(content) = fs::read_to_string(&history_file) {
-                if let Ok(existing) = serde_json::from_str::<Vec<GrowthPoint>>(&content) {
-                    history = existing;
-                }
-            }
+        if history_file.is_file()
+            && let Ok(content) = fs::read_to_string(&history_file)
+            && let Ok(existing) = serde_json::from_str::<Vec<GrowthPoint>>(&content)
+        {
+            history = existing;
         }
 
         // Add current measurement to real history
@@ -154,7 +161,9 @@ pub async fn get_storage_overview(
             snapshots_count: raw_stats.snapshots_count,
             growth_history: history,
             calculated_at: now_ts,
-            measurement_method: "restic stats --mode raw-data (repo blobs) & --mode restore-size (logical)".to_string(),
+            measurement_method:
+                "restic stats --mode raw-data (repo blobs) & --mode restore-size (logical)"
+                    .to_string(),
             is_demo: false,
         })
     })
@@ -169,11 +178,11 @@ fn categorize_minecraft_path(path: &str) -> String {
     // Check for instances/<instance_name>
     let mut instance_name: Option<String> = None;
     for (i, part) in parts.iter().enumerate() {
-        if part.eq_ignore_ascii_case("instances") || part.eq_ignore_ascii_case("profiles") {
-            if let Some(next) = parts.get(i + 1) {
-                instance_name = Some(next.to_string());
-                break;
-            }
+        if (part.eq_ignore_ascii_case("instances") || part.eq_ignore_ascii_case("profiles"))
+            && let Some(next) = parts.get(i + 1)
+        {
+            instance_name = Some(next.to_string());
+            break;
         }
     }
 
@@ -194,7 +203,11 @@ fn categorize_minecraft_path(path: &str) -> String {
     }
 
     // 2. Mods & Plugins
-    if parts.iter().any(|p| p.eq_ignore_ascii_case("mods") || p.eq_ignore_ascii_case("plugins")) || lower.ends_with(".jar") {
+    if parts
+        .iter()
+        .any(|p| p.eq_ignore_ascii_case("mods") || p.eq_ignore_ascii_case("plugins"))
+        || lower.ends_with(".jar")
+    {
         return if let Some(inst) = &instance_name {
             format!("Instance: {} (Mods)", inst)
         } else {
@@ -203,7 +216,10 @@ fn categorize_minecraft_path(path: &str) -> String {
     }
 
     // 3. Resource Packs
-    if parts.iter().any(|p| p.eq_ignore_ascii_case("resourcepacks") || p.eq_ignore_ascii_case("texturepacks")) {
+    if parts
+        .iter()
+        .any(|p| p.eq_ignore_ascii_case("resourcepacks") || p.eq_ignore_ascii_case("texturepacks"))
+    {
         return if let Some(inst) = &instance_name {
             format!("Instance: {} (Resource Packs)", inst)
         } else {
@@ -221,7 +237,10 @@ fn categorize_minecraft_path(path: &str) -> String {
     }
 
     // 5. Configs
-    if parts.iter().any(|p| p.eq_ignore_ascii_case("config") || p.eq_ignore_ascii_case("configs")) {
+    if parts
+        .iter()
+        .any(|p| p.eq_ignore_ascii_case("config") || p.eq_ignore_ascii_case("configs"))
+    {
         return if let Some(inst) = &instance_name {
             format!("Instance: {} (Configs)", inst)
         } else {
@@ -238,7 +257,10 @@ fn categorize_minecraft_path(path: &str) -> String {
     }
 
     // 7. Logs & Crash Reports
-    if parts.iter().any(|p| p.eq_ignore_ascii_case("logs") || p.eq_ignore_ascii_case("crash-reports")) {
+    if parts
+        .iter()
+        .any(|p| p.eq_ignore_ascii_case("logs") || p.eq_ignore_ascii_case("crash-reports"))
+    {
         return "Logs & Crash Reports".to_string();
     }
 
@@ -274,14 +296,12 @@ pub async fn get_snapshot_folder_breakdown(
             .join(format!("{}.json", snapshot_id));
 
         // Return immediately if cached
-        if cache_file.is_file() {
-            if let Ok(content) = fs::read_to_string(&cache_file) {
-                if let Ok(cached) = serde_json::from_str::<Vec<FolderSizeBreakdown>>(&content) {
-                    if !cached.is_empty() {
-                        return Ok(cached);
-                    }
-                }
-            }
+        if cache_file.is_file()
+            && let Ok(content) = fs::read_to_string(&cache_file)
+            && let Ok(cached) = serde_json::from_str::<Vec<FolderSizeBreakdown>>(&content)
+            && !cached.is_empty()
+        {
+            return Ok(cached);
         }
 
         let nodes_cache_file = base_dir
@@ -309,11 +329,15 @@ pub async fn get_snapshot_folder_breakdown(
             if let Some(parent) = nodes_cache_file.parent() {
                 let _ = fs::create_dir_all(parent);
             }
-            let _ = fs::write(&nodes_cache_file, serde_json::to_string(&fetched).unwrap_or_default());
+            let _ = fs::write(
+                &nodes_cache_file,
+                serde_json::to_string(&fetched).unwrap_or_default(),
+            );
             fetched
         };
 
-        let mut dir_sizes: std::collections::HashMap<String, (u64, u64)> = std::collections::HashMap::new();
+        let mut dir_sizes: std::collections::HashMap<String, (u64, u64)> =
+            std::collections::HashMap::new();
         let mut total_size: u64 = 0;
 
         for node in nodes {
@@ -349,7 +373,9 @@ pub async fn get_snapshot_folder_breakdown(
             .collect();
 
         breakdown.sort_by(|a, b| {
-            b.size_bytes.cmp(&a.size_bytes).then_with(|| b.file_count.cmp(&a.file_count))
+            b.size_bytes
+                .cmp(&a.size_bytes)
+                .then_with(|| b.file_count.cmp(&a.file_count))
         });
 
         // Persist to local disk cache for instant future loads
@@ -357,7 +383,10 @@ pub async fn get_snapshot_folder_breakdown(
             if let Some(parent) = cache_file.parent() {
                 let _ = fs::create_dir_all(parent);
             }
-            let _ = fs::write(&cache_file, serde_json::to_string(&breakdown).unwrap_or_default());
+            let _ = fs::write(
+                &cache_file,
+                serde_json::to_string(&breakdown).unwrap_or_default(),
+            );
         }
 
         Ok(breakdown)
@@ -381,25 +410,33 @@ pub async fn list_snapshot_nodes(
             .join(format!("{}.json", snapshot_id));
 
         // Return immediately if full nodes are cached and no dir_filter
-        if dir_filter.is_none() && nodes_cache_file.is_file() {
-            if let Ok(content) = fs::read_to_string(&nodes_cache_file) {
-                if let Ok(cached) = serde_json::from_str::<Vec<ResticNode>>(&content) {
-                    if !cached.is_empty() {
-                        return Ok(cached);
-                    }
-                }
-            }
+        if dir_filter.is_none()
+            && nodes_cache_file.is_file()
+            && let Ok(content) = fs::read_to_string(&nodes_cache_file)
+            && let Ok(cached) = serde_json::from_str::<Vec<ResticNode>>(&content)
+            && !cached.is_empty()
+        {
+            return Ok(cached);
         }
 
         let engine = ResticEngine::new();
         let recursive = dir_filter.is_none();
-        let nodes = engine.list_nodes(&repo, &creds, &snapshot_id, dir_filter.as_deref(), recursive)?;
+        let nodes = engine.list_nodes(
+            &repo,
+            &creds,
+            &snapshot_id,
+            dir_filter.as_deref(),
+            recursive,
+        )?;
 
         if dir_filter.is_none() && !nodes.is_empty() {
             if let Some(parent) = nodes_cache_file.parent() {
                 let _ = fs::create_dir_all(parent);
             }
-            let _ = fs::write(&nodes_cache_file, serde_json::to_string(&nodes).unwrap_or_default());
+            let _ = fs::write(
+                &nodes_cache_file,
+                serde_json::to_string(&nodes).unwrap_or_default(),
+            );
         }
 
         Ok(nodes)
@@ -460,7 +497,9 @@ pub async fn start_manual_backup(
     }
 
     if state.is_backup_running.swap(true, Ordering::SeqCst) {
-        return Err("A backup is already currently in progress. Please wait for it to finish.".to_string());
+        return Err(
+            "A backup is already currently in progress. Please wait for it to finish.".to_string(),
+        );
     }
     struct BackupRunningGuard(Arc<AtomicBool>);
     impl Drop for BackupRunningGuard {
@@ -490,18 +529,20 @@ pub async fn start_manual_backup(
     // Also append to run history list
     let history_file = base_dir.join(format!("{}_history.json", profile.id));
     let mut history = Vec::new();
-    if history_file.is_file() {
-        if let Ok(c) = fs::read_to_string(&history_file) {
-            if let Ok(arr) = serde_json::from_str::<Vec<RunResult>>(&c) {
-                history = arr;
-            }
-        }
+    if history_file.is_file()
+        && let Ok(c) = fs::read_to_string(&history_file)
+        && let Ok(arr) = serde_json::from_str::<Vec<RunResult>>(&c)
+    {
+        history = arr;
     }
     history.insert(0, result.clone());
     if history.len() > 30 {
         history.truncate(30);
     }
-    let _ = fs::write(&history_file, serde_json::to_string_pretty(&history).unwrap());
+    let _ = fs::write(
+        &history_file,
+        serde_json::to_string_pretty(&history).unwrap(),
+    );
 
     Ok(result)
 }
@@ -695,47 +736,40 @@ pub async fn get_dashboard_summary(
             }
 
             // Next scheduled run
-            if let Some(ref s) = prof.schedule {
-                if s.active {
+            if let Some(ref s) = prof.schedule
+                && s.active {
                     next_scheduled_run = Some(format!("{:02}:{:02} ({})", s.hour, s.minute, s.frequency));
                 }
-            }
 
             // Check last run from local status file
             let status_file = base_dir.join("status").join(format!("{}.json", prof.id));
-            if status_file.is_file() {
-                if let Ok(content) = fs::read_to_string(&status_file) {
-                    if let Ok(run) = serde_json::from_str::<RunResult>(&content) {
+            if status_file.is_file()
+                && let Ok(content) = fs::read_to_string(&status_file)
+                    && let Ok(run) = serde_json::from_str::<RunResult>(&content) {
                         last_attempted_backup = Some(run.clone());
                         if run.status == "success" || run.status == "partial_success" {
                             last_successful_backup = Some(run);
                         }
                     }
-                }
-            }
         }
 
         // Last integrity check
         let mut last_integrity_check = None;
         let check_file = base_dir.join("last_integrity_check.json");
-        if check_file.is_file() {
-            if let Ok(content) = fs::read_to_string(&check_file) {
-                if let Ok(chk) = serde_json::from_str::<IntegrityCheckResult>(&content) {
+        if check_file.is_file()
+            && let Ok(content) = fs::read_to_string(&check_file)
+                && let Ok(chk) = serde_json::from_str::<IntegrityCheckResult>(&content) {
                     last_integrity_check = Some(chk);
                 }
-            }
-        }
 
         // Last confirmed restore test
         let mut last_confirmed_restore_test = None;
         let test_file = base_dir.join("last_restore_test.json");
-        if test_file.is_file() {
-            if let Ok(content) = fs::read_to_string(&test_file) {
-                if let Ok(tst) = serde_json::from_str::<RestoreTestRecord>(&content) {
+        if test_file.is_file()
+            && let Ok(content) = fs::read_to_string(&test_file)
+                && let Ok(tst) = serde_json::from_str::<RestoreTestRecord>(&content) {
                     last_confirmed_restore_test = Some(tst);
                 }
-            }
-        }
 
         Ok(DashboardSummary {
             connection_status,
@@ -801,12 +835,11 @@ pub fn load_profiles_cmd() -> Vec<Profile> {
 
     if let Ok(entries) = fs::read_dir(profiles_dir) {
         for entry in entries.flatten() {
-            if entry.path().extension().and_then(|e| e.to_str()) == Some("json") {
-                if let Ok(c) = fs::read_to_string(entry.path()) {
-                    if let Ok(p) = serde_json::from_str::<Profile>(&c) {
-                        profiles.push(p);
-                    }
-                }
+            if entry.path().extension().and_then(|e| e.to_str()) == Some("json")
+                && let Ok(c) = fs::read_to_string(entry.path())
+                && let Ok(p) = serde_json::from_str::<Profile>(&c)
+            {
+                profiles.push(p);
             }
         }
     }
@@ -826,7 +859,12 @@ pub fn load_profiles_cmd() -> Vec<Profile> {
             machine_id: get_machine_id(),
             machine_name: get_machine_name(),
             source_paths: sources,
-            exclusions: vec!["*.lock".to_string(), "*.log".to_string(), "cache/".to_string(), "metacache".to_string()],
+            exclusions: vec![
+                "*.lock".to_string(),
+                "*.log".to_string(),
+                "cache/".to_string(),
+                "metacache".to_string(),
+            ],
             tags: vec!["prism".to_string(), "minecraft".to_string()],
             schedule: None,
             minecraft_preset: None,
@@ -908,12 +946,11 @@ pub fn load_repo_configs_cmd() -> Vec<RepoConfig> {
 
     if let Ok(entries) = fs::read_dir(repos_dir) {
         for entry in entries.flatten() {
-            if entry.path().extension().and_then(|e| e.to_str()) == Some("json") {
-                if let Ok(c) = fs::read_to_string(entry.path()) {
-                    if let Ok(r) = serde_json::from_str::<RepoConfig>(&c) {
-                        repos.push(r);
-                    }
-                }
+            if entry.path().extension().and_then(|e| e.to_str()) == Some("json")
+                && let Ok(c) = fs::read_to_string(entry.path())
+                && let Ok(r) = serde_json::from_str::<RepoConfig>(&c)
+            {
+                repos.push(r);
             }
         }
     }
@@ -928,11 +965,12 @@ pub async fn fetch_b2_provider_usage(
 ) -> Result<crate::b2_api::B2ProviderUsage, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let mut effective_creds = creds;
-        if effective_creds.b2_management_app_key.is_none() && effective_creds.b2_application_key.is_none() {
-            if let Ok(vault) = crate::usb_vault::load_usb_vault(None) {
-                effective_creds.b2_management_app_key = vault.b2_management_app_key;
-                effective_creds.b2_application_key = vault.b2_application_key;
-            }
+        if effective_creds.b2_management_app_key.is_none()
+            && effective_creds.b2_application_key.is_none()
+            && let Ok(vault) = crate::usb_vault::load_usb_vault(None)
+        {
+            effective_creds.b2_management_app_key = vault.b2_management_app_key;
+            effective_creds.b2_application_key = vault.b2_application_key;
         }
         crate::b2_api::query_b2_bucket_usage(&repo, &effective_creds)
     })
@@ -947,11 +985,12 @@ pub async fn apply_b2_lifecycle_rules_cmd(
 ) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let mut effective_creds = creds;
-        if effective_creds.b2_management_app_key.is_none() && effective_creds.b2_application_key.is_none() {
-            if let Ok(vault) = crate::usb_vault::load_usb_vault(None) {
-                effective_creds.b2_management_app_key = vault.b2_management_app_key;
-                effective_creds.b2_application_key = vault.b2_application_key;
-            }
+        if effective_creds.b2_management_app_key.is_none()
+            && effective_creds.b2_application_key.is_none()
+            && let Ok(vault) = crate::usb_vault::load_usb_vault(None)
+        {
+            effective_creds.b2_management_app_key = vault.b2_management_app_key;
+            effective_creds.b2_application_key = vault.b2_application_key;
         }
         crate::b2_api::apply_b2_lifecycle_rules(&repo, &effective_creds)
     })
@@ -971,27 +1010,30 @@ pub async fn purge_b2_hidden_versions_cmd(
 
     let base_dir = get_persistent_app_dir();
     let locks_dir = base_dir.join("locks");
-    if locks_dir.is_dir() {
-        if let Ok(entries) = fs::read_dir(&locks_dir) {
-            for entry in entries.flatten() {
-                if let Ok(pid_str) = fs::read_to_string(entry.path()) {
-                    if let Ok(pid) = pid_str.trim().parse::<i32>() {
-                        if crate::runner::is_pid_alive(pid) {
-                            return Err(format!("Cannot purge obsolete versions: background scheduled backup (PID {}) is currently running.", pid));
-                        }
-                    }
-                }
+    if locks_dir.is_dir()
+        && let Ok(entries) = fs::read_dir(&locks_dir)
+    {
+        for entry in entries.flatten() {
+            if let Ok(pid_str) = fs::read_to_string(entry.path())
+                && let Ok(pid) = pid_str.trim().parse::<i32>()
+                && crate::runner::is_pid_alive(pid)
+            {
+                return Err(format!(
+                    "Cannot purge obsolete versions: background scheduled backup (PID {}) is currently running.",
+                    pid
+                ));
             }
         }
     }
 
     tauri::async_runtime::spawn_blocking(move || {
         let mut effective_creds = creds;
-        if effective_creds.b2_management_app_key.is_none() && effective_creds.b2_application_key.is_none() {
-            if let Ok(vault) = crate::usb_vault::load_usb_vault(None) {
-                effective_creds.b2_management_app_key = vault.b2_management_app_key;
-                effective_creds.b2_application_key = vault.b2_application_key;
-            }
+        if effective_creds.b2_management_app_key.is_none()
+            && effective_creds.b2_application_key.is_none()
+            && let Ok(vault) = crate::usb_vault::load_usb_vault(None)
+        {
+            effective_creds.b2_management_app_key = vault.b2_management_app_key;
+            effective_creds.b2_application_key = vault.b2_application_key;
         }
         crate::b2_api::purge_b2_hidden_versions(&repo, &effective_creds)
     })
@@ -1045,31 +1087,40 @@ mod tests {
     #[test]
     fn test_categorize_minecraft_paths() {
         // Prism launcher instance world
-        let p1 = "/Users/declan/Library/Application Support/PrismLauncher/instances/1.20.4/saves/MyWorld/level.dat";
-        assert_eq!(categorize_minecraft_path(p1), "Instance: 1.20.4 / World: MyWorld");
+        let p1 = "/Users/player/Library/Application Support/PrismLauncher/instances/1.20.4/saves/MyWorld/level.dat";
+        assert_eq!(
+            categorize_minecraft_path(p1),
+            "Instance: 1.20.4 / World: MyWorld"
+        );
 
         // Windows path instance mods
-        let p2 = r"C:\Users\Declan\AppData\Roaming\PrismLauncher\instances\Fabric\mods\sodium.jar";
+        let p2 = r"C:\Users\Player\AppData\Roaming\PrismLauncher\instances\Fabric\mods\sodium.jar";
         assert_eq!(categorize_minecraft_path(p2), "Instance: Fabric (Mods)");
 
         // Relative path instance world
         let p3 = "instances/Vanilla/saves/Survival/region/r.0.0.mca";
-        assert_eq!(categorize_minecraft_path(p3), "Instance: Vanilla / World: Survival");
+        assert_eq!(
+            categorize_minecraft_path(p3),
+            "Instance: Vanilla / World: Survival"
+        );
 
         // Standalone saves
         let p4 = "saves/Singleplayer/level.dat";
         assert_eq!(categorize_minecraft_path(p4), "World: Singleplayer");
 
         // Resource packs
-        let p5 = "/Users/declan/Library/Application Support/PrismLauncher/instances/1.20.4/resourcepacks/Faithful.zip";
-        assert_eq!(categorize_minecraft_path(p5), "Instance: 1.20.4 (Resource Packs)");
+        let p5 = "/Users/player/Library/Application Support/PrismLauncher/instances/1.20.4/resourcepacks/Faithful.zip";
+        assert_eq!(
+            categorize_minecraft_path(p5),
+            "Instance: 1.20.4 (Resource Packs)"
+        );
 
         // Shader packs
         let p6 = "shaderpacks/ComplementaryShaders.zip";
         assert_eq!(categorize_minecraft_path(p6), "Shader Packs");
 
         // Launcher root config
-        let p7 = "/Users/declan/Library/Application Support/PrismLauncher/prismlauncher.cfg";
+        let p7 = "/Users/player/Library/Application Support/PrismLauncher/prismlauncher.cfg";
         assert_eq!(categorize_minecraft_path(p7), "Launcher Configurations");
     }
 }

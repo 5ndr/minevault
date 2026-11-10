@@ -3,10 +3,22 @@ use std::sync::LazyLock;
 
 static REDACT_PATTERNS: LazyLock<Vec<(regex::Regex, &'static str)>> = LazyLock::new(|| {
     vec![
-        (regex::Regex::new(r"(?i)(RESTIC_PASSWORD\s*=\s*)([^\s\r\n]+)").unwrap(), "$1[REDACTED_PASSWORD]"),
-        (regex::Regex::new(r"(?i)(AWS_SECRET_ACCESS_KEY\s*=\s*)([^\s\r\n]+)").unwrap(), "$1[REDACTED_SECRET_KEY]"),
-        (regex::Regex::new(r"(?i)(--password-file\s+)(\S+)").unwrap(), "$1[PATH_REDACTED]"),
-        (regex::Regex::new(r"(?i)(--password-command\s+)(.+?)(\s+--|\s*$)").unwrap(), "$1[COMMAND_REDACTED]$3"),
+        (
+            regex::Regex::new(r"(?i)(RESTIC_PASSWORD\s*=\s*)([^\s\r\n]+)").unwrap(),
+            "$1[REDACTED_PASSWORD]",
+        ),
+        (
+            regex::Regex::new(r"(?i)(AWS_SECRET_ACCESS_KEY\s*=\s*)([^\s\r\n]+)").unwrap(),
+            "$1[REDACTED_SECRET_KEY]",
+        ),
+        (
+            regex::Regex::new(r"(?i)(--password-file\s+)(\S+)").unwrap(),
+            "$1[PATH_REDACTED]",
+        ),
+        (
+            regex::Regex::new(r"(?i)(--password-command\s+)(.+?)(\s+--|\s*$)").unwrap(),
+            "$1[COMMAND_REDACTED]$3",
+        ),
     ]
 });
 
@@ -26,7 +38,10 @@ pub fn redact_secrets(input: &str, sensitive_strings: &[&str]) -> String {
 
     // Only run regexes if candidate patterns might exist in the string
     let upper = input.to_ascii_uppercase();
-    if upper.contains("RESTIC_PASSWORD") || upper.contains("AWS_SECRET") || upper.contains("--PASSWORD") {
+    if upper.contains("RESTIC_PASSWORD")
+        || upper.contains("AWS_SECRET")
+        || upper.contains("--PASSWORD")
+    {
         for (re, rep) in REDACT_PATTERNS.iter() {
             redacted = re.replace_all(&redacted, *rep).to_string();
         }
@@ -55,7 +70,10 @@ pub fn set_restrictive_permissions(path: &Path) -> std::io::Result<()> {
 }
 
 /// Validates that a restore target path and included paths cannot escape the destination directory.
-pub fn validate_restore_path(target_base: &Path, relative_candidate: &str) -> Result<PathBuf, String> {
+pub fn validate_restore_path(
+    target_base: &Path,
+    relative_candidate: &str,
+) -> Result<PathBuf, String> {
     let rel_path = Path::new(relative_candidate);
 
     // Prevent path traversal components
@@ -111,7 +129,7 @@ mod tests {
         let res = validate_restore_path(base, malicious);
         assert!(res.is_err(), "Should detect parent dir traversal");
 
-        let safe = "Users/declan/Library/Application Support/PrismLauncher";
+        let safe = "Users/demo/Library/Application Support/PrismLauncher";
         let res_safe = validate_restore_path(base, safe);
         assert!(res_safe.is_ok());
         let final_path = res_safe.unwrap();

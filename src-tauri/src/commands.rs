@@ -87,6 +87,16 @@ pub async fn test_repo_connection(
 }
 
 #[tauri::command]
+pub async fn init_repo_cmd(repo: RepoConfig, creds: SessionCredentials) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let engine = ResticEngine::new();
+        engine.init_repository(&repo, &creds)
+    })
+    .await
+    .map_err(|e| format!("Task execution error: {}", e))?
+}
+
+#[tauri::command]
 pub async fn list_snapshots(
     repo: RepoConfig,
     creds: SessionCredentials,

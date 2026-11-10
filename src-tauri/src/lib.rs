@@ -29,6 +29,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_system_info,
             commands::test_repo_connection,
+            commands::init_repo_cmd,
             commands::list_snapshots,
             commands::get_storage_overview,
             commands::get_snapshot_folder_breakdown,

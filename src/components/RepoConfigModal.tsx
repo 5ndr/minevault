@@ -53,6 +53,7 @@ export const RepoConfigModal: React.FC<RepoConfigModalProps> = ({
   const [usbVaultPassphrase, setUsbVaultPassphrase] = useState<string>('');
   const [password, setPassword] = useState<string>(creds?.password || '');
   const [testing, setTesting] = useState<boolean>(false);
+  const [initializing, setInitializing] = useState<boolean>(false);
   const [testResult, setTestResult] = useState<string | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
 
@@ -103,6 +104,59 @@ export const RepoConfigModal: React.FC<RepoConfigModalProps> = ({
       setTestError(e?.toString() || 'Connection failed');
     } finally {
       setTesting(false);
+    }
+  };
+
+  const handleInitializeRepo = async () => {
+    const cleanTarget = formatTarget(target);
+    if (!cleanTarget) {
+      setTestError('Please specify a valid repository target before initializing.');
+      return;
+    }
+
+    if (!insecureNoPassword && !password.trim()) {
+      setTestError('Please set a repository password (or toggle Insecure Passwordless Mode) before initializing.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Initialize a new restic repository at:\n${cleanTarget}\n\nThis creates the repository metadata, config, and encryption keys. Continue?`
+    );
+    if (!confirmed) return;
+
+    setInitializing(true);
+    setTestError(null);
+    setTestResult(null);
+
+    const initRepoConfig: RepoConfig = {
+      id: repo?.id || 'primary-repo',
+      name,
+      repo_type: repoType,
+      target: cleanTarget,
+      insecure_no_password: insecureNoPassword,
+      has_password: !insecureNoPassword && password.trim().length > 0,
+      b2_key_id: repoType === 's3_b2' ? b2KeyId : undefined,
+      b2_management_key_id: repoType === 's3_b2' && b2ManagementKeyId.trim() ? b2ManagementKeyId.trim() : undefined,
+    };
+
+    const initSessionCreds: SessionCredentials = {
+      password: insecureNoPassword ? undefined : password,
+      b2_application_key: repoType === 's3_b2' ? b2AppKey : undefined,
+      b2_management_app_key: repoType === 's3_b2' && b2ManagementAppKey.trim() ? b2ManagementAppKey.trim() : undefined,
+      save_to_local_os: false,
+    };
+
+    try {
+      const msg: string = await invoke('init_repo_cmd', {
+        repo: initRepoConfig,
+        creds: initSessionCreds,
+      });
+      setTestResult(`Repository created! ${msg}`);
+      setTestError(null);
+    } catch (e: any) {
+      setTestError(e?.toString() || 'Repository initialization failed');
+    } finally {
+      setInitializing(false);
     }
   };
 
@@ -370,9 +424,28 @@ export const RepoConfigModal: React.FC<RepoConfigModalProps> = ({
           )}
 
           {testError && (
-            <div className="alert-banner alert-error">
-              <AlertTriangle size={16} />
-              <span>{testError}</span>
+            <div className="alert-banner alert-error flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={16} />
+                <span>{testError}</span>
+              </div>
+              {(testError.includes('does not exist') || testError.includes('exit code 10')) && (
+                <div className="mt-2 pt-2 border-t border-red-500/20 flex flex-col gap-2">
+                  <span className="text-xs text-muted">
+                    No restic repository was found at this target location. If this is a new storage location, you can initialize it now:
+                  </span>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={handleInitializeRepo}
+                      disabled={initializing}
+                      className="btn-primary btn-tiny"
+                    >
+                      {initializing ? 'Initializing repository...' : 'Initialize New Repository Here'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -393,8 +466,17 @@ export const RepoConfigModal: React.FC<RepoConfigModalProps> = ({
           <div className="footer-actions">
             <button
               type="button"
+              onClick={handleInitializeRepo}
+              disabled={initializing || testing || !target.trim()}
+              className="btn-secondary"
+              title="Initialize a new restic repository if this storage location has never been used before"
+            >
+              {initializing ? 'Initializing...' : 'Initialize Repo'}
+            </button>
+            <button
+              type="button"
               onClick={handleTest}
-              disabled={testing || !target.trim()}
+              disabled={testing || initializing || !target.trim()}
               className="btn-secondary"
             >
               {testing ? 'Testing connection...' : 'Test Connection (Read-Only)'}

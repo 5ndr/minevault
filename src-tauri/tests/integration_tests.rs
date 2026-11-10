@@ -210,22 +210,6 @@ fn test_real_local_repository_integration_slice() {
     let sub_file = sub_dir.join("world_meta.json");
     fs::write(&sub_file, "{\"name\":\"Super World\",\"hardcore\":false}").unwrap();
 
-    // 1. Initialize repository with --insecure-no-password
-    let engine = ResticEngine::new();
-    let mut init_cmd = std::process::Command::new(engine.binary_path());
-    init_cmd.args([
-        "init",
-        "-r",
-        repo_dir.to_str().unwrap(),
-        "--insecure-no-password",
-    ]);
-    let init_out = init_cmd.output().expect("Failed to run restic init");
-    assert!(
-        init_out.status.success(),
-        "Init should succeed: {}",
-        String::from_utf8_lossy(&init_out.stderr)
-    );
-
     let repo_config = RepoConfig {
         id: "local-temp-test-repo".to_string(),
         name: "Temporary Integration Repo".to_string(),
@@ -240,6 +224,11 @@ fn test_real_local_repository_integration_slice() {
         b2_management_key_id: None,
     };
     let creds = SessionCredentials::default();
+
+    // 1. Initialize repository with --insecure-no-password via engine
+    let engine = ResticEngine::new();
+    let init_res = engine.init_repository(&repo_config, &creds);
+    assert!(init_res.is_ok(), "Init should succeed: {:?}", init_res);
 
     // 2. Safe connection test
     let conn_res = engine.test_connection(&repo_config, &creds);
@@ -353,20 +342,9 @@ fn test_retention_policy_and_pinned_tag_protection() {
     };
     let creds = SessionCredentials::default();
 
-    // Init repo with --insecure-no-password
-    let mut init_cmd = std::process::Command::new(engine.binary_path());
-    init_cmd.args([
-        "init",
-        "-r",
-        repo_dir.to_str().unwrap(),
-        "--insecure-no-password",
-    ]);
-    let init_out = init_cmd.output().expect("Failed to run restic init");
-    assert!(
-        init_out.status.success(),
-        "Init should succeed: {}",
-        String::from_utf8_lossy(&init_out.stderr)
-    );
+    // Init repo with --insecure-no-password via engine
+    let init_res = engine.init_repository(&repo_config, &creds);
+    assert!(init_res.is_ok(), "Init should succeed: {:?}", init_res);
 
     // 1. Snapshot 1: Pinned / Important distinction backup
     let profile_pinned = Profile {

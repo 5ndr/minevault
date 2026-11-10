@@ -287,6 +287,32 @@ impl ResticEngine {
         }
     }
 
+    /// Initializes a new restic repository at the target destination.
+    pub fn init_repository(
+        &self,
+        repo: &RepoConfig,
+        creds: &SessionCredentials,
+    ) -> Result<String, String> {
+        let (cmd, sensitive) = self.prepare_command("init", repo, creds, &[]);
+
+        let output = run_command_with_timeout(cmd, Duration::from_secs(45))?;
+
+        let sensitive_slices: Vec<&str> = sensitive.iter().map(|s| s.as_str()).collect();
+        let stderr = redact_secrets(&String::from_utf8_lossy(&output.stderr), &sensitive_slices);
+        let stdout = redact_secrets(&String::from_utf8_lossy(&output.stdout), &sensitive_slices);
+
+        if output.status.success() {
+            let msg = if !stdout.trim().is_empty() {
+                stdout.trim().to_string()
+            } else {
+                "Repository initialized successfully.".to_string()
+            };
+            Ok(msg)
+        } else {
+            Err(format!("Initialization failed: {}", stderr.trim()))
+        }
+    }
+
     /// List snapshots with optional machine hostname and path filtering.
     pub fn list_snapshots(
         &self,

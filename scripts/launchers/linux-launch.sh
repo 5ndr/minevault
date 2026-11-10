@@ -8,6 +8,17 @@ if [ ! -f "$APPIMAGE" ]; then
     exit 1
 fi
 
+run_app() {
+    local bin="$1"
+    shift
+    if "$bin" "$@" 2>/dev/null; then
+        return 0
+    else
+        # If FUSE is absent (e.g. Ubuntu 24.04), fallback to built-in userspace extraction mode without root
+        exec "$bin" --appimage-extract-and-run "$@"
+    fi
+}
+
 # Test if execution from USB media is permitted or blocked by noexec mount
 if ! [ -x "$APPIMAGE" ] || ! "$APPIMAGE" --version >/dev/null 2>&1; then
     echo "[Info] Direct execution from USB drive blocked (noexec mount detected)."
@@ -20,7 +31,7 @@ if ! [ -x "$APPIMAGE" ] || ! "$APPIMAGE" --version >/dev/null 2>&1; then
         cp -p "$DIR/bin/restic" "$CACHE_DIR/bin/restic"
         chmod +x "$CACHE_DIR/bin/restic"
     fi
-    exec "$CACHE_DIR/MineVault.AppImage" "$@"
+    run_app "$CACHE_DIR/MineVault.AppImage" "$@"
 else
-    exec "$APPIMAGE" "$@"
+    run_app "$APPIMAGE" "$@"
 fi

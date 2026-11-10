@@ -2,6 +2,17 @@
 set -e
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+run_app() {
+    local bin="$1"
+    shift
+    if "$bin" "$@" 2>/dev/null; then
+        return 0
+    else
+        # If FUSE is absent (e.g. Ubuntu 24.04), fallback to built-in userspace extraction mode without root
+        exec "$bin" --appimage-extract-and-run "$@"
+    fi
+}
+
 if [ -f "$DIR/Linux-x64/launch.sh" ]; then
     exec "$DIR/Linux-x64/launch.sh" "$@"
 elif [ -f "$DIR/Linux-x64/MineVault.AppImage" ]; then
@@ -17,9 +28,9 @@ elif [ -f "$DIR/Linux-x64/MineVault.AppImage" ]; then
             cp -p "$DIR/Linux-x64/bin/restic" "$CACHE_DIR/bin/restic"
             chmod +x "$CACHE_DIR/bin/restic"
         fi
-        exec "$CACHE_DIR/MineVault.AppImage" "$@"
+        run_app "$CACHE_DIR/MineVault.AppImage" "$@"
     else
-        exec "$APPIMAGE" "$@"
+        run_app "$APPIMAGE" "$@"
     fi
 else
     echo "Error: MineVault.AppImage not found in $DIR/Linux-x64."

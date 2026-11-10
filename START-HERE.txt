@@ -24,10 +24,14 @@ No installation of Node, Rust, Python, Homebrew, or developer tools is required.
   2. Alternatively:
      - For Apple Silicon: open "macOS-arm64/MineVault.dmg".
      - For Intel Macs:    open "macOS-x64/MineVault.dmg".
-  3. Gatekeeper Note: If macOS displays "MineVault cannot be opened because the
-     developer cannot be verified":
-     Right-click (or Control-click) "MineVault.app" inside the DMG -> click "Open"
-     -> click "Open" in the dialog box. You only need to do this once.
+  3. Gatekeeper Note: If macOS displays "cannot be opened because the developer
+     cannot be verified" or asks for an administrator password:
+     - Run "Launch-macOS.command", which automatically strips the web download
+       quarantine tag with zero admin prompts, OR
+     - In Terminal, run:
+       xattr -cr /path/to/MineVault.app
+       (e.g., xattr -cr /Applications/MineVault.app)
+       This marks the app as locally trusted and opens on double-click with zero prompts.
      * Do NOT disable Gatekeeper globally.
 
 ▶ LINUX (Ubuntu 22.04+, Debian 12+, Fedora, Arch):

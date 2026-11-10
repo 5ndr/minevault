@@ -125,6 +125,11 @@ While exFAT provides cross-platform file access, it does not support POSIX permi
   - The macOS distribution is packaged inside a native Apple Disk Image (`MineVault.dmg`) or compressed `.tar.gz` archive.
   - Double-clicking `MineVault.dmg` mounts a virtual HFS+/APFS volume where all POSIX permissions, internal symlinks, and code signatures remain 100% intact.
   - The provided `launch_macos.command` script mounts the image automatically or stages the app bundle to a local temporary cache (`~/.cache/minevault_staging/`) on the internal APFS drive if necessary.
+  - **Quarantine & Admin Prompts**: When downloaded from the web, macOS attaches `com.apple.quarantine`. If macOS asks for an administrator password in System Settings, you can bypass this completely without admin rights by running `Launch-macOS.command` (which strips quarantine automatically) or by running:
+    ```bash
+    xattr -cr /path/to/MineVault.app
+    ```
+    This immediately marks the app as trusted and allows it to launch on double-click with zero prompts.
 
 ### 2. Linux: The `noexec` Mount Problem
 - **Limitation**: Almost all modern Linux desktop environments (GNOME, KDE, systemd udisks2) automatically mount FAT32 and exFAT removable media with the `noexec` security mount flag.

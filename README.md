@@ -56,6 +56,26 @@ Carried on a USB flash drive, MineVault lets you plug into any computer running 
 
 ---
 
+## 🍎 macOS Quick Start & Troubleshooting ("Why macOS likes to be hard")
+
+macOS defaults to aggressive security checks on open-source web downloads (Gatekeeper, quarantine tags, and admin password prompts in System Settings). 
+
+If macOS reports **"cannot be opened because Apple cannot check it for malicious software"** or prompts for an administrator password:
+
+> [!TIP]
+> **The 1-Second Zero-Admin Fix**:
+> Open Terminal and run:
+> ```bash
+> xattr -cr /Applications/MineVault.app
+> ```
+> *(Or `xattr -d com.apple.quarantine ~/Downloads/MineVault-*.dmg`)*
+> 
+> Because you own your downloaded files, this strips the browser quarantine flag in user space with **zero passwords, zero admin rights, and zero sudo**. Double-click `MineVault.app` and it opens immediately.
+
+For complete details on Gatekeeper, Apple Silicon vs Intel architectures, hidden `~/Library` Minecraft save paths, and native `launchd` background schedules, see the dedicated [**macOS Guide (MACOS-GUIDE.md)**](MACOS-GUIDE.md).
+
+---
+
 ## 🏗️ Architecture Overview
 
 ```

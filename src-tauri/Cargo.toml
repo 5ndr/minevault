@@ -1,6 +1,6 @@
 [package]
 name = "resticdashboard"
-version = "0.1.0"
+version = "0.1.1"
 description = "Cross-platform portable restic backup manager"
 authors = ["Antigravity"]
 edition = "2024"

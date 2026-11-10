@@ -129,7 +129,7 @@ While exFAT provides cross-platform file access, it does not support POSIX permi
     ```bash
     xattr -cr /path/to/MineVault.app
     ```
-    This immediately marks the app as trusted and allows it to launch on double-click with zero prompts.
+    This immediately marks the app as trusted and allows it to launch on double-click with zero prompts. See [MACOS-GUIDE.md](MACOS-GUIDE.md) for full details.
 
 ### 2. Linux: The `noexec` Mount Problem
 - **Limitation**: Almost all modern Linux desktop environments (GNOME, KDE, systemd udisks2) automatically mount FAT32 and exFAT removable media with the `noexec` security mount flag.

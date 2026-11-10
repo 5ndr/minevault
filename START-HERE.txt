@@ -32,6 +32,7 @@ No installation of Node, Rust, Python, Homebrew, or developer tools is required.
        xattr -cr /path/to/MineVault.app
        (e.g., xattr -cr /Applications/MineVault.app)
        This marks the app as locally trusted and opens on double-click with zero prompts.
+     * See MACOS-GUIDE.md for complete troubleshooting.
      * Do NOT disable Gatekeeper globally.
 
 ▶ LINUX (Ubuntu 22.04+, Debian 12+, Fedora, Arch):

@@ -153,7 +153,11 @@ jobs:
             file \
             libssl-dev \
             libayatana-appindicator3-dev \
-            restic
+            bzip2
+          # Install official modern restic v0.19.1 supporting --insecure-no-password
+          curl -fsSL https://github.com/restic/restic/releases/download/v0.19.1/restic_0.19.1_linux_amd64.bz2 | bunzip2 | sudo tee /usr/local/bin/restic > /dev/null
+          sudo chmod +x /usr/local/bin/restic
+          restic version
 
       - name: Install macOS restic engine
         if: runner.os == 'macOS'

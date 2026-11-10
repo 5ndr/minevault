@@ -46,15 +46,27 @@ jobs:
   # ---------------------------------------------------------------------------
   rust-lint:
     name: Rust Code Quality (fmt & clippy)
+    needs: [frontend]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Node.js for frontend assets
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install npm dependencies & build frontend distribution
+        run: |
+          npm ci
+          npm run build
+
       - name: Install Linux Tauri build prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev \
             librsvg2-dev \
             patchelf \
@@ -119,7 +131,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev \
             librsvg2-dev \
             patchelf \

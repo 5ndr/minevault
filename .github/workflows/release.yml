@@ -360,11 +360,13 @@ jobs:
         run: |
           echo "Publishing draft release for tag: $TAG_NAME"
 
+          # Remove stale draft if one exists from a previous attempt
+          gh release delete "$TAG_NAME" -y 2>/dev/null || true
+
           gh release create "$TAG_NAME" \
             dist-release/archives/* \
             --title "MineVault v${APP_VERSION} (Portable USB Release)" \
             --draft \
-            --clobber \
             --notes-file - << 'EOF'
           ## MineVault: Portable Minecraft Disaster Recovery & B2 Backup Manager
 

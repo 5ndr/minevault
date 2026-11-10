@@ -1,0 +1,57 @@
+# Node / Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Rust / Cargo
+src-tauri/target/
+target/
+src-tauri/gen/schemas/
+**/*.rs.bk
+
+# Sensitive Vault & Credential Files
+*.enc
+*.env
+*.env.*
+minevault_keys.enc
+b2_provider_usage.json
+last_integrity_check.json
+storage_history.json
+configs/
+secrets/
+status/
+locks/
+cache/
+
+# Large compiled binaries in USB distribution
+usb_dist/**/bin/restic
+usb_dist/**/bin/restic.exe
+usb_dist/**/resticdashboard
+usb_dist/**/resticdashboard.exe
+usb_dist/**/*.app/
+
+# Editor and OS directories
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+

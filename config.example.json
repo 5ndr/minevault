@@ -1,0 +1,51 @@
+{
+  "repository": {
+    "id": "b2-minecraft-repo",
+    "name": "Backblaze B2 Backup Repo",
+    "repo_type": "s3_b2",
+    "target": "s3:s3.us-west-004.backblazeb2.com/YOUR_BUCKET_NAME/restic",
+    "insecure_no_password": true,
+    "has_password": false,
+    "b2_key_id": "004_YOUR_APPLICATION_KEY_ID_PLACEHOLDER",
+    "b2_endpoint": "s3.us-west-004.backblazeb2.com",
+    "b2_bucket": "YOUR_BUCKET_NAME",
+    "b2_prefix": "restic"
+  },
+  "credentials_note": "Never store AWS_SECRET_ACCESS_KEY or RESTIC_PASSWORD in git or USB config files. Supply them via session GUI input or unattended persistent local install (mode 0600).",
+  "profile": {
+    "id": "prism-launcher-backup",
+    "name": "Prism Launcher Backups",
+    "repo_id": "b2-minecraft-repo",
+    "machine_id": "my-macbook",
+    "machine_name": "MacBook Pro",
+    "source_paths": [
+      "/Users/YOUR_USERNAME/Library/Application Support/PrismLauncher"
+    ],
+    "exclusions": [
+      "*.lock",
+      "logs/*",
+      "cache/*",
+      "metacache"
+    ],
+    "tags": [
+      "minecraft",
+      "prism",
+      "daily"
+    ],
+    "schedule": {
+      "frequency": "daily",
+      "hour": 4,
+      "minute": 0,
+      "active": true
+    },
+    "minecraft_preset": {
+      "enabled": true,
+      "launcher_path": "/Users/YOUR_USERNAME/Library/Application Support/PrismLauncher",
+      "selected_instances": [
+        "Survival 1.20"
+      ],
+      "warn_live_world": true,
+      "close_world_advised": true
+    }
+  }
+}

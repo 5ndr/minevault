@@ -127,7 +127,7 @@ jobs:
   build-macos-arm64:
     name: Build macOS (Apple Silicon arm64)
     needs: [validate-version]
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -180,7 +180,7 @@ jobs:
   build-macos-x64:
     name: Build macOS (Intel x86_64)
     needs: [validate-version]
-    runs-on: macos-13
+    runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

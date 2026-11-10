@@ -238,8 +238,11 @@ jobs:
 
       - name: Install Linux build dependencies
         run: |
+          sudo apt-get purge -y needrestart 2>/dev/null || true
           sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+          sudo DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a apt-get install -y --no-install-recommends \
+            -o Dpkg::Options::="--force-confdef" \
+            -o Dpkg::Options::="--force-confold" \
             libwebkit2gtk-4.1-dev \
             librsvg2-dev \
             patchelf \

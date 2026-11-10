@@ -56,10 +56,9 @@ pub fn get_disk_free_space(path: &Path) -> Result<u64, String> {
         }
     }
 
-    let path_str = check_path.to_str().ok_or("Invalid UTF-8 in path")?;
-
     #[cfg(unix)]
     {
+        let path_str = check_path.to_str().ok_or("Invalid UTF-8 in path")?;
         let c_path = std::ffi::CString::new(path_str).map_err(|e| e.to_string())?;
         let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
         let res = unsafe { libc::statvfs(c_path.as_ptr(), &mut stat) };

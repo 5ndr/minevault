@@ -6,6 +6,16 @@ use crate::models::{Profile, RepoConfig, RunResult, SchedulerStatus, SessionCred
 use crate::scheduler::{SchedulerAdapter, setup_persistent_local_files};
 use crate::system::get_persistent_app_dir;
 
+#[cfg(unix)]
+fn current_user_uid() -> u32 {
+    unsafe { libc::getuid() }
+}
+
+#[cfg(not(unix))]
+fn current_user_uid() -> u32 {
+    1000
+}
+
 pub struct MacOsLaunchdAdapter;
 
 impl MacOsLaunchdAdapter {
@@ -137,7 +147,7 @@ impl SchedulerAdapter for MacOsLaunchdAdapter {
         })?;
 
         // 3. Register with launchctl
-        let uid = unsafe { libc::getuid() };
+        let uid = current_user_uid();
         let domain_target = format!("gui/{}", uid);
 
         // Try modern launchctl bootstrap
@@ -168,7 +178,7 @@ impl SchedulerAdapter for MacOsLaunchdAdapter {
 
     fn uninstall(&self, profile_id: &str) -> Result<(), String> {
         let plist_path = Self::plist_path(profile_id);
-        let uid = unsafe { libc::getuid() };
+        let uid = current_user_uid();
         let domain_target = format!("gui/{}", uid);
         let service_target = format!("gui/{}/{}", uid, Self::service_label(profile_id));
 
@@ -203,7 +213,7 @@ impl SchedulerAdapter for MacOsLaunchdAdapter {
 
     fn disable(&self, profile_id: &str) -> Result<(), String> {
         let plist_path = Self::plist_path(profile_id);
-        let uid = unsafe { libc::getuid() };
+        let uid = current_user_uid();
         let service_target = format!("gui/{}/{}", uid, Self::service_label(profile_id));
 
         let _ = Command::new("launchctl")
@@ -225,7 +235,7 @@ impl SchedulerAdapter for MacOsLaunchdAdapter {
             );
         }
 
-        let uid = unsafe { libc::getuid() };
+        let uid = current_user_uid();
         let domain_target = format!("gui/{}", uid);
 
         let _ = Command::new("launchctl")

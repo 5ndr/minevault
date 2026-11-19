@@ -9,7 +9,15 @@ if exist "Windows-x64\MineVault.exe" (
     start "" "Windows-x64\MineVault.exe" %*
 ) else if exist "Windows-x64\launch.bat" (
     call "Windows-x64\launch.bat" %*
+) else if exist "src-tauri\target\release\MineVault.exe" (
+    start "" "src-tauri\target\release\MineVault.exe" %*
+) else if exist "src-tauri\target\release\resticdashboard.exe" (
+    start "" "src-tauri\target\release\resticdashboard.exe" %*
+) else if exist "package.json" (
+    echo [MineVault] Standalone executable not found. Starting development server on host PC...
+    call npm run tauri dev
 ) else (
-    echo [Error] MineVault.exe not found in Windows-x64 folder.
+    echo [Error] MineVault.exe not found.
+    echo Please make sure all files were extracted properly.
     pause
 )

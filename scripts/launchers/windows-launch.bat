@@ -8,6 +8,8 @@ powershell -NoProfile -Command "Get-ChildItem -Path '%SCRIPT_DIR%' -Recurse -Fil
 
 if exist "MineVault.exe" (
     start "" "MineVault.exe" %*
+) else if exist "resticdashboard.exe" (
+    start "" "resticdashboard.exe" %*
 ) else (
     echo [Error] MineVault.exe was not found in "%SCRIPT_DIR%".
     echo Please make sure all files were extracted properly.

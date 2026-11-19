@@ -263,7 +263,7 @@ echo "--> Packaging archives in $OUTPUT_DIR/archives..."
 if [ -d "$USB_ROOT/Windows-x64" ]; then
     (
         cd "$USB_ROOT"
-        zip -q -r -9 "$OUTPUT_DIR/archives/MineVault-v${VERSION}-windows-x64.zip" "Windows-x64" "START-HERE.txt" "USB-SETUP.md" "licenses" "build-manifest.json"
+        zip -q -r -9 "$OUTPUT_DIR/archives/MineVault-v${VERSION}-windows-x64.zip" "Windows-x64" "Launch-Windows.bat" "START-HERE.txt" "USB-SETUP.md" "licenses" "build-manifest.json"
     )
 fi
 

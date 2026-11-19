@@ -14,7 +14,16 @@ if exist "Windows-x64\MineVault.exe" (
 ) else if exist "src-tauri\target\release\resticdashboard.exe" (
     start "" "src-tauri\target\release\resticdashboard.exe" %*
 ) else if exist "package.json" (
-    echo [MineVault] Standalone executable not found. Starting development server on host PC...
+    echo [MineVault] Standalone executable not found.
+    echo [MineVault] Setting up and starting MineVault on host PC...
+    if not exist "node_modules" (
+        echo [MineVault] Installing dependencies...
+        call npm install
+    )
+    if not exist "dist\index.html" (
+        echo [MineVault] Building frontend bundle...
+        call npm run build
+    )
     call npm run tauri dev
 ) else (
     echo [Error] MineVault.exe not found.
